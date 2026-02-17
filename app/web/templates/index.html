@@ -1823,7 +1823,7 @@ async function sendPlanMessage() {
       }
     }
 
-    // Extract JSON slots from reply and update timeline
+    // Extract JSON slots from reply, update timeline, and replace raw JSON with a summary
     const m = assistantText.match(/```json\n([\s\S]+?)\n```/);
     if (m) {
       try {
@@ -1832,6 +1832,7 @@ async function sendPlanMessage() {
           await patchSlots(updatedSlots);
           renderTimeline(updatedSlots);
           toast('Schedule updated');
+          if (bubble) bubble.innerHTML = `Schedule updated — ${updatedSlots.length} slots`;
         }
       } catch {}
     }
