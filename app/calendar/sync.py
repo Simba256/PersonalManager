@@ -353,8 +353,11 @@ class CalendarSync:
         end_str = event.get("end", {}).get("dateTime", "")
 
         try:
-            start = datetime.fromisoformat(start_str.replace("Z", "+00:00")).replace(tzinfo=None)
-            end = datetime.fromisoformat(end_str.replace("Z", "+00:00")).replace(tzinfo=None)
+            import pytz
+            from app.config import settings
+            local_tz = pytz.timezone(settings.timezone)
+            start = datetime.fromisoformat(start_str.replace("Z", "+00:00")).astimezone(local_tz).replace(tzinfo=None)
+            end = datetime.fromisoformat(end_str.replace("Z", "+00:00")).astimezone(local_tz).replace(tzinfo=None)
         except Exception:
             return
 

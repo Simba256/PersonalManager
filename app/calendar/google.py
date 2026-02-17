@@ -430,12 +430,9 @@ class GoogleCalendarClient:
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _local_tz() -> str:
-    """Get local timezone name."""
-    try:
-        import tzlocal
-        return str(tzlocal.get_localzone())
-    except Exception:
-        return "UTC"
+    """Get configured timezone name (from settings.TIMEZONE)."""
+    from app.config import settings
+    return settings.timezone
 
 
 def _this_monday() -> datetime:
