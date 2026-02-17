@@ -152,18 +152,23 @@ async def job_git_monitor():
 
 
 async def job_nightly_planning():
-    """Generate interactive daily plan for tomorrow at 2 AM."""
+    """Generate interactive daily plan at 2 AM for the current day.
+
+    At 2 AM the calendar date has already rolled over, so date.today() is
+    already the day we want to plan for (e.g. running at 02:00 Thursday
+    produces a plan for Thursday).
+    """
     import asyncio
-    from datetime import date, timedelta
+    from datetime import date
 
     try:
         from app.agent.nightly_planner import NightlyPlanner
 
-        tomorrow = date.today() + timedelta(days=1)
+        today = date.today()
         planner = NightlyPlanner()
-        plan = await asyncio.to_thread(planner.run, tomorrow)
+        plan = await asyncio.to_thread(planner.run, today)
         logger.info(
-            f"Nightly plan generated for {tomorrow}: "
+            f"Nightly plan generated for {today}: "
             f"{len(plan['slots'])} slots, status={plan['status']}"
         )
     except Exception as e:

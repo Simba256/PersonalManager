@@ -730,28 +730,21 @@ planning_router = APIRouter(prefix="/api/planning", tags=["planning"])
 
 
 def _get_plan_date() -> "date":
-    """Return today's date, falling back to tomorrow if no today plan exists."""
-    from datetime import date as date_type, timedelta
-    from app.agent.nightly_planner import NightlyPlanner
-
-    planner = NightlyPlanner()
-    today = date_type.today()
-    if planner.load(today):
-        return today
-    return today + timedelta(days=1)
+    """Return today's date. Plans are always generated for the current day."""
+    from datetime import date as date_type
+    return date_type.today()
 
 
 @planning_router.get("/status")
 async def planning_status():
-    """Check whether a plan exists for today/tomorrow."""
-    from datetime import date as date_type, timedelta
+    """Check whether a plan exists for today."""
+    from datetime import date as date_type
     from app.agent.nightly_planner import NightlyPlanner
 
     planner = NightlyPlanner()
     today = date_type.today()
-    tomorrow = today + timedelta(days=1)
 
-    plan = planner.load(today) or planner.load(tomorrow)
+    plan = planner.load(today)
     if plan is None:
         return {"success": True, "data": {"has_plan": False, "status": "none", "date": None}}
 
