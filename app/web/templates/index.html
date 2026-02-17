@@ -1,173 +1,1876 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ title }} - Personal AI Assistant</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{{ title }} — Personal Manager</title>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <style>
+    /* ── Design tokens ────────────────────────────────────────────────────── */
+    :root {
+      --bg:      #0f0f13;
+      --sidebar: #16161d;
+      --card:    #1e1e2a;
+      --border:  #2a2a3a;
+      --accent:  #7c6af7;
+      --accent2: #a78bfa;
+      --text:    #e2e2e8;
+      --muted:   #9090a8;
+      --success: #34d399;
+      --danger:  #f87171;
+      --warn:    #fb923c;
+    }
 
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: #333;
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
+    /* ── Reset / base ─────────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      overflow: hidden;
+    }
 
-        .container {
-            background: white;
-            border-radius: 20px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-            padding: 3rem;
-            max-width: 600px;
-            text-align: center;
-        }
+    /* ── Scrollbar ────────────────────────────────────────────────────────── */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 
-        h1 {
-            color: #667eea;
-            font-size: 2.5rem;
-            margin-bottom: 1rem;
-        }
+    /* ── Sidebar ──────────────────────────────────────────────────────────── */
+    #sidebar {
+      width: 200px;
+      min-width: 200px;
+      background: var(--sidebar);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      padding: 1.5rem 0;
+      gap: 0.25rem;
+    }
+    .sidebar-logo {
+      padding: 0 1.25rem 1.25rem;
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--accent2);
+      letter-spacing: -0.3px;
+    }
+    .sidebar-logo span { color: var(--muted); font-weight: 400; font-size: 0.75rem; display: block; margin-top: 2px; }
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      padding: 0.6rem 1.25rem;
+      cursor: pointer;
+      border-radius: 0;
+      color: var(--muted);
+      font-size: 0.9rem;
+      transition: background 0.15s, color 0.15s;
+      border-left: 3px solid transparent;
+      user-select: none;
+    }
+    .nav-item:hover { background: rgba(124,106,247,0.08); color: var(--text); }
+    .nav-item.active { color: var(--accent2); background: rgba(124,106,247,0.12); border-left-color: var(--accent); }
+    .nav-icon { font-size: 1.1rem; width: 1.3rem; text-align: center; }
 
-        .version {
-            color: #999;
-            font-size: 0.9rem;
-            margin-bottom: 2rem;
-        }
+    /* ── Main ─────────────────────────────────────────────────────────────── */
+    #main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
 
-        .status {
-            background: #f8f9fa;
-            border-radius: 10px;
-            padding: 1.5rem;
-            margin: 2rem 0;
-        }
+    /* ── Tab panels ───────────────────────────────────────────────────────── */
+    .tab-panel { display: none; flex: 1; overflow: hidden; flex-direction: column; }
+    .tab-panel.active { display: flex; }
 
-        .status-item {
-            display: flex;
-            justify-content: space-between;
-            padding: 0.5rem 0;
-            border-bottom: 1px solid #e9ecef;
-        }
+    /* ── Generic helpers ──────────────────────────────────────────────────── */
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1rem;
+    }
+    .badge {
+      display: inline-block;
+      padding: 0.15rem 0.55rem;
+      border-radius: 99px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+    .badge-critical { background: rgba(248,113,113,0.2); color: var(--danger); }
+    .badge-high     { background: rgba(251,146,60,0.2);  color: var(--warn); }
+    .badge-medium   { background: rgba(251,191,36,0.2);  color: #fbbf24; }
+    .badge-low      { background: rgba(144,144,168,0.2); color: var(--muted); }
+    .badge-cat      { background: rgba(124,106,247,0.2); color: var(--accent2); }
+    button {
+      cursor: pointer;
+      border: none;
+      outline: none;
+      font-family: inherit;
+    }
+    input, select, textarea {
+      font-family: inherit;
+      font-size: 0.9rem;
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.45rem 0.7rem;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    input:focus, select:focus, textarea:focus { border-color: var(--accent); }
+    select option { background: var(--card); }
 
-        .status-item:last-child {
-            border-bottom: none;
-        }
+    /* ── Progress bar ─────────────────────────────────────────────────────── */
+    .progress-bar {
+      height: 5px;
+      background: var(--border);
+      border-radius: 3px;
+      overflow: hidden;
+      margin-top: 0.4rem;
+    }
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      border-radius: 3px;
+      transition: width 0.4s ease;
+    }
 
-        .status-label {
-            font-weight: 600;
-            color: #495057;
-        }
+    /* ═══════════════════════════════════════════════════════════════════════
+       CHAT TAB
+    ════════════════════════════════════════════════════════════════════════ */
+    #tab-chat {
+      display: none;
+      flex-direction: column;
+      height: 100%;
+    }
+    #tab-chat.active { display: flex; }
+    #chat-toolbar {
+      display: flex;
+      justify-content: flex-end;
+      padding: 0.5rem 1.5rem 0;
+      border-bottom: 1px solid var(--border);
+    }
+    #chat-clear {
+      background: none;
+      color: var(--muted);
+      font-size: 0.78rem;
+      padding: 0.3rem 0.65rem;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      transition: color 0.15s, border-color 0.15s;
+    }
+    #chat-clear:hover { color: var(--danger); border-color: var(--danger); }
+    #chat-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+    .msg-row {
+      display: flex;
+      gap: 0.75rem;
+      align-items: flex-start;
+    }
+    .msg-row.user { flex-direction: row-reverse; }
+    .msg-avatar {
+      width: 2rem;
+      height: 2rem;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.85rem;
+      flex-shrink: 0;
+    }
+    .msg-avatar.user-av { background: var(--accent); }
+    .msg-avatar.ai-av   { background: var(--card); border: 1px solid var(--border); }
+    .msg-bubble {
+      max-width: 70%;
+      padding: 0.65rem 0.9rem;
+      border-radius: 12px;
+      font-size: 0.88rem;
+      line-height: 1.55;
+    }
+    .msg-row.user .msg-bubble {
+      background: var(--accent);
+      color: #fff;
+      border-bottom-right-radius: 3px;
+    }
+    .msg-row.assistant .msg-bubble {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-bottom-left-radius: 3px;
+    }
+    /* ── Markdown content inside chat bubbles ─────────────────────────────── */
+    .msg-bubble p { margin: 0.35rem 0; }
+    .msg-bubble p:first-child { margin-top: 0; }
+    .msg-bubble p:last-child  { margin-bottom: 0; }
+    .msg-bubble h1, .msg-bubble h2, .msg-bubble h3,
+    .msg-bubble h4, .msg-bubble h5, .msg-bubble h6 {
+      margin: 0.75rem 0 0.35rem;
+      line-height: 1.3;
+      font-weight: 600;
+    }
+    .msg-bubble h1:first-child, .msg-bubble h2:first-child,
+    .msg-bubble h3:first-child { margin-top: 0; }
+    .msg-bubble h1 { font-size: 1.15rem; }
+    .msg-bubble h2 { font-size: 1.05rem; }
+    .msg-bubble h3 { font-size: 0.97rem; }
+    .msg-bubble h4, .msg-bubble h5, .msg-bubble h6 { font-size: 0.9rem; }
+    .msg-bubble ul, .msg-bubble ol {
+      margin: 0.35rem 0;
+      padding-left: 1.4rem;
+    }
+    .msg-bubble li { margin: 0.15rem 0; }
+    .msg-bubble li > ul, .msg-bubble li > ol { margin: 0.1rem 0; }
+    .msg-bubble strong { font-weight: 700; }
+    .msg-bubble em { font-style: italic; }
+    .msg-bubble a { color: var(--accent2); text-decoration: underline; }
+    .msg-bubble a:hover { color: var(--text); }
+    .msg-bubble blockquote {
+      border-left: 3px solid var(--accent);
+      margin: 0.4rem 0;
+      padding: 0.2rem 0.75rem;
+      color: var(--muted);
+      font-style: italic;
+    }
+    .msg-bubble pre {
+      background: rgba(0,0,0,0.35);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.6rem 0.8rem;
+      overflow-x: auto;
+      margin: 0.5rem 0;
+    }
+    .msg-bubble pre code {
+      background: none;
+      padding: 0;
+      border-radius: 0;
+      font-size: 0.82rem;
+    }
+    .msg-bubble code {
+      font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+      font-size: 0.82rem;
+      background: rgba(0,0,0,0.25);
+      padding: 0.1em 0.35em;
+      border-radius: 4px;
+    }
+    .msg-bubble hr {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 0.6rem 0;
+    }
+    .msg-bubble table {
+      border-collapse: collapse;
+      margin: 0.5rem 0;
+      font-size: 0.85rem;
+      width: 100%;
+    }
+    .msg-bubble th, .msg-bubble td {
+      border: 1px solid var(--border);
+      padding: 0.3rem 0.6rem;
+      text-align: left;
+    }
+    .msg-bubble th { background: rgba(124,106,247,0.12); font-weight: 600; }
+    .msg-bubble tr:nth-child(even) { background: rgba(255,255,255,0.03); }
+    .tool-chip {
+      display: inline-block;
+      font-size: 0.73rem;
+      background: rgba(52,211,153,0.12);
+      color: var(--success);
+      border: 1px solid rgba(52,211,153,0.25);
+      border-radius: 99px;
+      padding: 0.15rem 0.6rem;
+      margin: 0.15rem 0.1rem;
+    }
+    #chat-chips { padding: 0 1.5rem 0.25rem; display: flex; flex-wrap: wrap; gap: 0.25rem; }
+    #chat-input-row {
+      padding: 1rem 1.5rem 1.25rem;
+      display: flex;
+      gap: 0.75rem;
+      border-top: 1px solid var(--border);
+    }
+    #chat-input {
+      flex: 1;
+      resize: none;
+      border-radius: 10px;
+      padding: 0.6rem 0.9rem;
+      font-size: 0.9rem;
+      line-height: 1.4;
+      max-height: 140px;
+      min-height: 42px;
+    }
+    #chat-send {
+      background: var(--accent);
+      color: #fff;
+      border-radius: 10px;
+      padding: 0 1.1rem;
+      font-size: 0.9rem;
+      font-weight: 600;
+      transition: background 0.15s;
+      align-self: flex-end;
+      height: 42px;
+    }
+    #chat-send:hover { background: var(--accent2); }
+    #chat-send:disabled { opacity: 0.5; cursor: not-allowed; }
+    .thinking-dot {
+      display: inline-block;
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--muted);
+      animation: blink 1.2s infinite;
+    }
+    .thinking-dot:nth-child(2) { animation-delay: 0.2s; }
+    .thinking-dot:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes blink {
+      0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
+      40%            { opacity: 1;   transform: scale(1.1); }
+    }
 
-        .status-value {
-            color: #28a745;
-        }
+    /* ═══════════════════════════════════════════════════════════════════════
+       TASKS TAB
+    ════════════════════════════════════════════════════════════════════════ */
+    #tab-tasks {
+      display: none;
+      flex-direction: row;
+      height: 100%;
+      gap: 0;
+    }
+    #tab-tasks.active { display: flex; }
+    #tasks-list-panel {
+      flex: 1;
+      overflow-y: auto;
+      padding: 1.5rem;
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+    #tasks-add-panel {
+      width: 300px;
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      overflow-y: auto;
+    }
+    .tasks-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.25rem;
+    }
+    .tasks-header h2 { font-size: 1rem; font-weight: 600; }
+    .task-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.8rem 1rem;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 0.75rem;
+    }
+    .task-card-left { flex: 1; min-width: 0; }
+    .task-title {
+      font-size: 0.9rem;
+      font-weight: 500;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .task-meta {
+      font-size: 0.75rem;
+      color: var(--muted);
+      margin-top: 0.3rem;
+    }
+    .task-meta span + span::before { content: " · "; }
+    .complete-btn {
+      background: rgba(52,211,153,0.15);
+      color: var(--success);
+      border: 1px solid rgba(52,211,153,0.25);
+      border-radius: 6px;
+      padding: 0.3rem 0.65rem;
+      font-size: 0.78rem;
+      transition: background 0.15s;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .complete-btn:hover { background: rgba(52,211,153,0.3); }
+    .delete-btn {
+      background: rgba(248,113,113,0.12);
+      color: var(--danger);
+      border: 1px solid rgba(248,113,113,0.2);
+      border-radius: 6px;
+      padding: 0.3rem 0.65rem;
+      font-size: 0.78rem;
+      transition: background 0.15s;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .delete-btn:hover { background: rgba(248,113,113,0.25); }
+    .task-card.completed { opacity: 0.6; }
+    .task-card.completed .task-title { text-decoration: line-through; color: var(--muted); }
+    .section-toggle {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.65rem 0.25rem;
+      margin-top: 0.5rem;
+      cursor: pointer;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--muted);
+      border-top: 1px solid var(--border);
+      user-select: none;
+      transition: color 0.15s;
+    }
+    .section-toggle:hover { color: var(--text); }
+    #completed-toggle-arrow { font-size: 0.65rem; transition: transform 0.2s; }
+    #completed-toggle-arrow.open { transform: rotate(90deg); }
+    #completed-count-badge {
+      margin-left: auto;
+      font-size: 0.72rem;
+      font-weight: 400;
+      color: var(--muted);
+    }
+    .panel-title {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      margin-bottom: 0.25rem;
+    }
+    .add-form-field { display: flex; flex-direction: column; gap: 0.3rem; }
+    .add-form-field label { font-size: 0.8rem; color: var(--muted); }
+    .add-form-field input,
+    .add-form-field select { width: 100%; }
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+      border-radius: 8px;
+      padding: 0.55rem 1rem;
+      font-size: 0.9rem;
+      font-weight: 600;
+      transition: background 0.15s;
+      width: 100%;
+    }
+    .btn-primary:hover { background: var(--accent2); }
 
-        .links {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 1rem;
-            margin-top: 2rem;
-        }
+    /* ═══════════════════════════════════════════════════════════════════════
+       ACTIVITY TAB
+    ════════════════════════════════════════════════════════════════════════ */
+    #tab-activity {
+      display: none;
+      flex-direction: column;
+      height: 100%;
+      overflow-y: auto;
+    }
+    #tab-activity.active { display: flex; }
+    #activity-inner {
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+    .activity-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .filter-btns { display: flex; gap: 0.4rem; }
+    .filter-btn {
+      background: var(--card);
+      color: var(--muted);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.35rem 0.8rem;
+      font-size: 0.82rem;
+      transition: all 0.15s;
+    }
+    .filter-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .filter-btn:hover:not(.active) { border-color: var(--accent); color: var(--text); }
+    .summary-cards {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.75rem;
+    }
+    .summary-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1rem;
+    }
+    .summary-card .sc-label { font-size: 0.75rem; color: var(--muted); margin-bottom: 0.3rem; }
+    .summary-card .sc-value { font-size: 1.3rem; font-weight: 700; color: var(--accent2); }
+    .activity-section { display: flex; flex-direction: column; gap: 0.5rem; }
+    .section-title { font-size: 0.8rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+    .activity-row {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.5rem 0.75rem;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+    .activity-row-name { flex: 1; font-size: 0.85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .activity-row-time { font-size: 0.8rem; color: var(--muted); white-space: nowrap; }
+    .activity-bar-wrap { flex: 1; }
+    .activity-bar { height: 5px; background: var(--border); border-radius: 3px; overflow: hidden; }
+    .activity-bar-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent2)); border-radius: 3px; }
 
-        .link-card {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 1.5rem 1rem;
-            border-radius: 10px;
-            text-decoration: none;
-            transition: transform 0.2s, box-shadow 0.2s;
-            cursor: pointer;
-        }
+    /* ═══════════════════════════════════════════════════════════════════════
+       GOALS TAB
+    ════════════════════════════════════════════════════════════════════════ */
+    #tab-goals {
+      display: none;
+      flex-direction: column;
+      height: 100%;
+      overflow-y: auto;
+    }
+    #tab-goals.active { display: flex; }
+    #goals-inner {
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+    .goals-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .goals-header h2 { font-size: 1rem; font-weight: 600; }
+    #add-goal-form {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1rem;
+      display: none;
+      flex-direction: column;
+      gap: 0.6rem;
+    }
+    #add-goal-form.open { display: flex; }
+    #add-goal-form .form-row { display: flex; gap: 0.6rem; }
+    #add-goal-form input,
+    #add-goal-form select { flex: 1; }
+    .goals-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 0.85rem;
+    }
+    .goal-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.6rem;
+    }
+    .goal-card-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.5rem; }
+    .goal-title { font-size: 0.9rem; font-weight: 600; }
+    .goal-meta { font-size: 0.75rem; color: var(--muted); }
+    .goal-progress-label { display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--muted); }
 
-        .link-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
-        }
+    /* ── Empty / Loading states ───────────────────────────────────────────── */
+    .empty-state {
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.88rem;
+      padding: 2rem 0;
+    }
+    .spinner {
+      display: inline-block;
+      width: 1.2rem; height: 1.2rem;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      vertical-align: middle;
+      margin-right: 0.4rem;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
 
-        .link-card h3 {
-            font-size: 1.1rem;
-            margin-bottom: 0.5rem;
-        }
+    /* ── Nav badge ────────────────────────────────────────────────────────── */
+    .nav-badge {
+      position: absolute;
+      top: 6px;
+      right: 10px;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--danger);
+    }
 
-        .link-card p {
-            font-size: 0.85rem;
-            opacity: 0.9;
-        }
+    /* ═══════════════════════════════════════════════════════════════════════
+       PLAN TAB
+    ════════════════════════════════════════════════════════════════════════ */
+    #tab-plan {
+      display: none;
+      flex-direction: column;
+      height: 100%;
+      overflow: hidden;
+    }
+    #tab-plan.active { display: flex; }
+    #plan-inner {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    #plan-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1rem 1.5rem 0.75rem;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    #plan-header h2 { font-size: 1rem; font-weight: 600; }
+    #plan-header-right { display: flex; gap: 0.5rem; }
+    .plan-action-btn {
+      background: var(--accent);
+      color: #fff;
+      border-radius: 8px;
+      padding: 0.35rem 0.9rem;
+      font-size: 0.82rem;
+      font-weight: 600;
+      transition: background 0.15s;
+    }
+    .plan-action-btn:hover { background: var(--accent2); }
+    .plan-action-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+    .plan-action-btn.secondary {
+      background: var(--card);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .plan-action-btn.secondary:hover { background: var(--border); }
+    #plan-body {
+      flex: 1;
+      display: flex;
+      flex-direction: row;
+      overflow: hidden;
+    }
+    /* Timeline */
+    #plan-timeline-panel {
+      flex: 1;
+      overflow-y: auto;
+      padding: 1.25rem 1.5rem;
+      border-right: 1px solid var(--border);
+    }
+    #plan-summary-text {
+      font-size: 0.82rem;
+      color: var(--muted);
+      margin-bottom: 1rem;
+    }
+    .timeline-slot {
+      display: flex;
+      align-items: stretch;
+      gap: 0.75rem;
+      margin-bottom: 0.5rem;
+    }
+    .slot-time {
+      font-size: 0.75rem;
+      color: var(--muted);
+      width: 3rem;
+      flex-shrink: 0;
+      padding-top: 0.25rem;
+      font-variant-numeric: tabular-nums;
+    }
+    .slot-bar-wrap {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 0.15rem;
+    }
+    .slot-bar {
+      border-radius: 6px;
+      padding: 0.35rem 0.7rem;
+      font-size: 0.82rem;
+      font-weight: 500;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      min-height: 2rem;
+    }
+    .slot-bar.type-task    { background: rgba(124,106,247,0.18); color: var(--accent2); border-left: 3px solid var(--accent); }
+    .slot-bar.type-break   { background: rgba(144,144,168,0.12); color: var(--muted);   border-left: 3px solid var(--border); }
+    .slot-bar.type-meeting { background: rgba(251,146,60,0.15);  color: var(--warn);    border-left: 3px solid var(--warn); }
+    .slot-bar.type-admin   { background: rgba(59,130,246,0.15);  color: #60a5fa;        border-left: 3px solid #3b82f6; }
+    .slot-dur {
+      font-size: 0.72rem;
+      opacity: 0.7;
+      white-space: nowrap;
+    }
+    #plan-empty {
+      text-align: center;
+      color: var(--muted);
+      padding: 3rem 1rem;
+      font-size: 0.9rem;
+    }
+    /* Plan chat */
+    #plan-chat-panel {
+      width: 360px;
+      min-width: 300px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    #plan-chat-label {
+      padding: 0.75rem 1rem 0.5rem;
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    #plan-chat-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0.75rem 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+    #plan-chat-input-row {
+      padding: 0.75rem 1rem;
+      display: flex;
+      gap: 0.5rem;
+      border-top: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    #plan-chat-input {
+      flex: 1;
+      resize: none;
+      border-radius: 8px;
+      padding: 0.5rem 0.7rem;
+      font-size: 0.85rem;
+      line-height: 1.4;
+      max-height: 100px;
+      min-height: 36px;
+    }
+    #plan-chat-send {
+      background: var(--accent);
+      color: #fff;
+      border-radius: 8px;
+      padding: 0 0.9rem;
+      font-size: 0.85rem;
+      font-weight: 600;
+      transition: background 0.15s;
+      align-self: flex-end;
+      height: 36px;
+    }
+    #plan-chat-send:hover { background: var(--accent2); }
+    #plan-chat-send:disabled { opacity: 0.5; cursor: not-allowed; }
 
-        .setup-notice {
-            background: #fff3cd;
-            border: 1px solid #ffc107;
-            border-radius: 10px;
-            padding: 1rem;
-            margin-top: 2rem;
-            color: #856404;
-        }
-
-        .setup-notice h4 {
-            margin-bottom: 0.5rem;
-        }
-
-        .setup-notice code {
-            background: #f8f9fa;
-            padding: 0.2rem 0.4rem;
-            border-radius: 3px;
-            font-size: 0.9rem;
-        }
-    </style>
+    /* ── Toast ────────────────────────────────────────────────────────────── */
+    #toast {
+      position: fixed;
+      bottom: 1.5rem;
+      right: 1.5rem;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.65rem 1rem;
+      font-size: 0.85rem;
+      opacity: 0;
+      transform: translateY(0.5rem);
+      transition: opacity 0.2s, transform 0.2s;
+      pointer-events: none;
+      z-index: 999;
+    }
+    #toast.show { opacity: 1; transform: translateY(0); }
+  </style>
 </head>
 <body>
-    <div class="container">
-        <h1>🤖 Personal Manager</h1>
-        <p class="version">Version {{ version }}</p>
-        <p>Your AI-Powered Personal Assistant</p>
 
-        <div class="status">
-            <div class="status-item">
-                <span class="status-label">Status</span>
-                <span class="status-value">● Running</span>
-            </div>
-            <div class="status-item">
-                <span class="status-label">Backend</span>
-                <span class="status-value">FastAPI</span>
-            </div>
-            <div class="status-item">
-                <span class="status-label">Database</span>
-                <span class="status-value">SQLite</span>
-            </div>
-        </div>
+<!-- ── Sidebar ─────────────────────────────────────────────────────────────── -->
+<nav id="sidebar">
+  <div class="sidebar-logo">
+    Personal Manager
+    <span>AI Assistant</span>
+  </div>
+  <div class="nav-item active" data-tab="chat">
+    <span class="nav-icon">💬</span> Chat
+  </div>
+  <div class="nav-item" data-tab="tasks">
+    <span class="nav-icon">✓</span> Tasks
+  </div>
+  <div class="nav-item" data-tab="activity">
+    <span class="nav-icon">📊</span> Activity
+  </div>
+  <div class="nav-item" data-tab="goals">
+    <span class="nav-icon">🎯</span> Goals
+  </div>
+  <div class="nav-item" data-tab="plan" style="position:relative;">
+    <span class="nav-icon">📋</span> Plan
+    <span id="plan-badge" class="nav-badge" style="display:none;"></span>
+  </div>
+</nav>
 
-        <div class="links">
-            <a href="/docs" class="link-card">
-                <h3>📚 API Docs</h3>
-                <p>Interactive API documentation</p>
-            </a>
-            <a href="/api/health" class="link-card">
-                <h3>💚 Health</h3>
-                <p>System health check</p>
-            </a>
-            <a href="/api/status" class="link-card">
-                <h3>📊 Status</h3>
-                <p>System status</p>
-            </a>
-        </div>
+<!-- ── Main ───────────────────────────────────────────────────────────────── -->
+<div id="main">
 
-        <div class="setup-notice">
-            <h4>🚀 Setup Required</h4>
-            <p>To complete setup, run:</p>
-            <p style="margin-top: 0.5rem;">
-                <code>python scripts/setup_google_calendar.py</code>
-            </p>
-            <p style="margin-top: 0.5rem; font-size: 0.85rem;">
-                Then configure your API keys in <code>.env</code>
-            </p>
-        </div>
+  <!-- ─────────────────────── CHAT ──────────────────────────────────────── -->
+  <div id="tab-chat" class="tab-panel active">
+    <div id="chat-toolbar">
+      <button id="chat-clear" title="Clear conversation">Clear chat</button>
     </div>
+    <div id="chat-messages"></div>
+    <div id="chat-chips"></div>
+    <div id="chat-input-row">
+      <textarea id="chat-input" rows="1" placeholder="Ask anything… (Enter to send, Shift+Enter for newline)"></textarea>
+      <button id="chat-send">Send</button>
+    </div>
+  </div>
+
+  <!-- ─────────────────────── TASKS ─────────────────────────────────────── -->
+  <div id="tab-tasks" class="tab-panel">
+    <div id="tasks-list-panel">
+      <div class="tasks-header">
+        <h2>Pending Tasks</h2>
+      </div>
+      <div id="tasks-list"><div class="empty-state"><span class="spinner"></span> Loading…</div></div>
+
+      <div id="completed-toggle" class="section-toggle">
+        <span id="completed-toggle-arrow">▶</span> Completed Tasks
+        <span id="completed-count-badge"></span>
+      </div>
+      <div id="completed-section" style="display:none;">
+        <div id="completed-list"><div class="empty-state"><span class="spinner"></span> Loading…</div></div>
+      </div>
+    </div>
+    <div id="tasks-add-panel">
+      <div class="panel-title">Quick Add Task</div>
+      <div class="add-form-field">
+        <label>Title *</label>
+        <input type="text" id="new-task-title" placeholder="Task title" />
+      </div>
+      <div class="add-form-field">
+        <label>Priority</label>
+        <select id="new-task-priority">
+          <option value="medium">Medium</option>
+          <option value="low">Low</option>
+          <option value="high">High</option>
+          <option value="critical">Critical</option>
+        </select>
+      </div>
+      <div class="add-form-field">
+        <label>Project</label>
+        <select id="new-task-project"><option value="">— none —</option></select>
+      </div>
+      <div class="add-form-field">
+        <label>Due Date</label>
+        <input type="date" id="new-task-due" />
+      </div>
+      <button class="btn-primary" id="add-task-btn">Add Task</button>
+      <div id="task-add-msg" style="font-size:0.8rem;color:var(--muted);min-height:1rem;"></div>
+    </div>
+  </div>
+
+  <!-- ─────────────────────── ACTIVITY ──────────────────────────────────── -->
+  <div id="tab-activity" class="tab-panel">
+    <div id="activity-inner">
+      <div class="activity-header">
+        <h2 style="font-size:1rem;font-weight:600;">Activity</h2>
+        <div class="filter-btns">
+          <button class="filter-btn active" data-period="today">Today</button>
+          <button class="filter-btn" data-period="week">Week</button>
+          <button class="filter-btn" data-period="month">Month</button>
+        </div>
+      </div>
+      <div class="summary-cards">
+        <div class="summary-card">
+          <div class="sc-label">Total Time</div>
+          <div class="sc-value" id="act-total-time">—</div>
+        </div>
+        <div class="summary-card">
+          <div class="sc-label">Top App</div>
+          <div class="sc-value" id="act-top-app" style="font-size:0.95rem;">—</div>
+        </div>
+        <div class="summary-card">
+          <div class="sc-label">Top Domain</div>
+          <div class="sc-value" id="act-top-domain" style="font-size:0.95rem;">—</div>
+        </div>
+      </div>
+      <div class="activity-section">
+        <div class="section-title">Apps</div>
+        <div id="act-apps"><div class="empty-state"><span class="spinner"></span> Loading…</div></div>
+      </div>
+      <div class="activity-section">
+        <div class="section-title">Directories</div>
+        <div id="act-dirs"><div class="empty-state"></div></div>
+      </div>
+      <div class="activity-section">
+        <div class="section-title">Browser Domains</div>
+        <div id="act-domains"><div class="empty-state"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────────────────── GOALS ─────────────────────────────────────── -->
+  <div id="tab-goals" class="tab-panel">
+    <div id="goals-inner">
+      <div class="goals-header">
+        <h2>Active Goals</h2>
+        <button class="btn-primary" id="toggle-add-goal-btn" style="width:auto;padding:0.4rem 0.9rem;font-size:0.85rem;">+ Add Goal</button>
+      </div>
+      <div id="add-goal-form">
+        <div class="form-row">
+          <input type="text" id="goal-title" placeholder="Goal title *" />
+          <input type="text" id="goal-category" placeholder="Category (e.g. career)" />
+        </div>
+        <div class="form-row">
+          <input type="date" id="goal-target" />
+          <button class="btn-primary" id="save-goal-btn" style="white-space:nowrap;">Save Goal</button>
+        </div>
+      </div>
+      <div class="goals-grid" id="goals-grid">
+        <div class="empty-state"><span class="spinner"></span> Loading…</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────────────────── PLAN ──────────────────────────────────────── -->
+  <div id="tab-plan" class="tab-panel">
+    <div id="plan-inner">
+      <div id="plan-header">
+        <h2 id="plan-title">📋 Daily Plan</h2>
+        <div id="plan-header-right">
+          <button class="plan-action-btn secondary" id="plan-regen-btn">Regenerate</button>
+          <button class="plan-action-btn" id="plan-post-btn">Post to Calendar</button>
+        </div>
+      </div>
+      <div id="plan-body">
+        <div id="plan-timeline-panel">
+          <div id="plan-summary-text"></div>
+          <div id="plan-timeline">
+            <div id="plan-empty">
+              <div style="font-size:2rem;margin-bottom:0.5rem;">📋</div>
+              No plan yet. Click <strong>Regenerate</strong> to create one.
+            </div>
+          </div>
+        </div>
+        <div id="plan-chat-panel">
+          <div id="plan-chat-label">Refine with chat</div>
+          <div id="plan-chat-messages"></div>
+          <div id="plan-chat-input-row">
+            <textarea id="plan-chat-input" rows="1" placeholder="Move 9am to 10am…"></textarea>
+            <button id="plan-chat-send">Send</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ── Toast ──────────────────────────────────────────────────────────────── -->
+<div id="toast"></div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════════════════
+   Utilities
+══════════════════════════════════════════════════════════════════════════ */
+function toast(msg, ms = 2500) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.classList.remove('show'), ms);
+}
+
+function fmtSecs(s) {
+  s = Math.round(s || 0);
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60), r = s % 60;
+  if (m < 60) return r ? `${m}m ${r}s` : `${m}m`;
+  const h = Math.floor(m / 60), rm = m % 60;
+  return rm ? `${h}h ${rm}m` : `${h}h`;
+}
+
+function fmtMins(m) {
+  return fmtSecs((m || 0) * 60);
+}
+
+async function api(path, opts = {}) {
+  const res = await fetch(path, opts);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Tab routing
+══════════════════════════════════════════════════════════════════════════ */
+const tabLoaded = {};
+
+function switchTab(name) {
+  document.querySelectorAll('.nav-item').forEach(el => el.classList.toggle('active', el.dataset.tab === name));
+  document.querySelectorAll('.tab-panel').forEach(el => el.classList.toggle('active', el.id === `tab-${name}`));
+  if (!tabLoaded[name]) {
+    tabLoaded[name] = true;
+    if (name === 'tasks')    loadTasks();
+    if (name === 'activity') loadActivity('today');
+    if (name === 'goals')    loadGoals();
+    if (name === 'plan')     loadPlan();
+  }
+}
+
+document.querySelectorAll('.nav-item').forEach(el =>
+  el.addEventListener('click', () => switchTab(el.dataset.tab))
+);
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CHAT
+══════════════════════════════════════════════════════════════════════════ */
+const chatMessages = document.getElementById('chat-messages');
+const chatInput    = document.getElementById('chat-input');
+const chatSend     = document.getElementById('chat-send');
+const chatChips    = document.getElementById('chat-chips');
+
+// History lives in sessionStorage
+function getChatHistory() {
+  try { return JSON.parse(sessionStorage.getItem('pm_history') || '[]'); }
+  catch { return []; }
+}
+function saveChatHistory(h) {
+  try { sessionStorage.setItem('pm_history', JSON.stringify(h.slice(-40))); } catch {}
+}
+
+function addMessage(role, html, isMarkdown = false) {
+  const row = document.createElement('div');
+  row.className = `msg-row ${role}`;
+
+  const avatar = document.createElement('div');
+  avatar.className = `msg-avatar ${role === 'user' ? 'user-av' : 'ai-av'}`;
+  avatar.textContent = role === 'user' ? '👤' : '🤖';
+
+  const bubble = document.createElement('div');
+  bubble.className = 'msg-bubble';
+  if (isMarkdown) {
+    bubble.innerHTML = marked.parse(html);
+  } else {
+    bubble.textContent = html;
+  }
+
+  row.appendChild(avatar);
+  row.appendChild(bubble);
+  chatMessages.appendChild(row);
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+  return bubble;
+}
+
+function addThinkingIndicator() {
+  const row = document.createElement('div');
+  row.className = 'msg-row assistant';
+  row.id = 'thinking-row';
+  row.innerHTML = `
+    <div class="msg-avatar ai-av">🤖</div>
+    <div class="msg-bubble">
+      <span class="thinking-dot"></span>
+      <span class="thinking-dot"></span>
+      <span class="thinking-dot"></span>
+    </div>`;
+  chatMessages.appendChild(row);
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+function removeThinkingIndicator() {
+  const el = document.getElementById('thinking-row');
+  if (el) el.remove();
+}
+
+async function sendMessage() {
+  const text = chatInput.value.trim();
+  if (!text || chatSend.disabled) return;
+
+  chatInput.value = '';
+  chatInput.style.height = 'auto';
+  chatChips.innerHTML = '';
+
+  addMessage('user', text);
+
+  const history = getChatHistory();
+  chatSend.disabled = true;
+  addThinkingIndicator();
+
+  let assistantText = '';
+  const pendingChips = [];
+  let bubble = null;
+
+  try {
+    const res = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: text, history }),
+    });
+
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+
+      const parts = buf.split('\n\n');
+      buf = parts.pop();
+
+      for (const part of parts) {
+        const line = part.trim();
+        if (!line.startsWith('data:')) continue;
+        let evt;
+        try { evt = JSON.parse(line.slice(5).trim()); } catch { continue; }
+
+        if (evt.type === 'tool') {
+          removeThinkingIndicator();
+          const chip = document.createElement('span');
+          chip.className = 'tool-chip';
+          chip.textContent = '✓ ' + evt.text;
+          chatChips.appendChild(chip);
+          chatMessages.scrollTop = chatMessages.scrollHeight;
+          addThinkingIndicator();
+
+        } else if (evt.type === 'token') {
+          removeThinkingIndicator();
+          assistantText += evt.text;
+          if (!bubble) {
+            bubble = addMessage('assistant', '', false);
+          }
+          bubble.innerHTML = marked.parse(assistantText);
+          chatMessages.scrollTop = chatMessages.scrollHeight;
+
+        } else if (evt.type === 'error') {
+          removeThinkingIndicator();
+          if (!bubble) bubble = addMessage('assistant', '', false);
+          bubble.textContent = 'Error: ' + evt.text;
+          bubble.style.color = 'var(--danger)';
+
+        } else if (evt.type === 'done') {
+          removeThinkingIndicator();
+        }
+      }
+    }
+
+    // Save to history
+    history.push({ role: 'user', content: text });
+    history.push({ role: 'assistant', content: assistantText });
+    saveChatHistory(history);
+
+  } catch (err) {
+    removeThinkingIndicator();
+    addMessage('assistant', `Error: ${err.message}`);
+  } finally {
+    chatSend.disabled = false;
+    chatInput.focus();
+  }
+}
+
+document.getElementById('chat-clear').addEventListener('click', () => {
+  sessionStorage.removeItem('pm_history');
+  chatMessages.innerHTML = '';
+  chatChips.innerHTML = '';
+  toast('Chat cleared');
+});
+
+chatSend.addEventListener('click', sendMessage);
+chatInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+});
+chatInput.addEventListener('input', () => {
+  chatInput.style.height = 'auto';
+  chatInput.style.height = Math.min(chatInput.scrollHeight, 140) + 'px';
+});
+
+// Restore history on load
+(function restoreHistory() {
+  const h = getChatHistory();
+  for (const msg of h) {
+    if (msg.role === 'user') addMessage('user', msg.content);
+    else if (msg.role === 'assistant') addMessage('assistant', msg.content, true);
+  }
+})();
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   TASKS
+══════════════════════════════════════════════════════════════════════════ */
+let projectsList = [];
+
+async function loadTasks() {
+  const listEl = document.getElementById('tasks-list');
+  const projectSel = document.getElementById('new-task-project');
+  listEl.innerHTML = `<div class="empty-state"><span class="spinner"></span> Loading…</div>`;
+
+  try {
+    const [tasksData, projectsData] = await Promise.all([
+      api('/api/tasks?status=pending&limit=100'),
+      api('/api/projects'),
+    ]);
+
+    projectsList = projectsData.data.projects || [];
+    projectSel.innerHTML = '<option value="">— none —</option>';
+    for (const p of projectsList) {
+      const opt = document.createElement('option');
+      opt.value = p.id;
+      opt.textContent = p.name;
+      projectSel.appendChild(opt);
+    }
+
+    const tasks = tasksData.data.tasks || [];
+    if (!tasks.length) {
+      listEl.innerHTML = `<div class="empty-state">No pending tasks 🎉</div>`;
+      return;
+    }
+
+    listEl.innerHTML = '';
+    for (const t of tasks) {
+      listEl.appendChild(buildTaskCard(t));
+    }
+  } catch (err) {
+    listEl.innerHTML = `<div class="empty-state" style="color:var(--danger)">Failed to load tasks: ${err.message}</div>`;
+  }
+}
+
+function buildTaskCard(t) {
+  const project = projectsList.find(p => p.id === t.project_id);
+  const card = document.createElement('div');
+  card.className = 'task-card';
+  card.id = `task-${t.id}`;
+
+  const meta = [];
+  if (t.due_date) meta.push(`due ${new Date(t.due_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`);
+  if (project)   meta.push(project.name);
+  if (t.estimate_minutes) meta.push(`~${fmtMins(t.estimate_minutes)}`);
+
+  card.innerHTML = `
+    <div class="task-card-left">
+      <div class="task-title">${escHtml(t.title)}</div>
+      <div class="task-meta">
+        <span class="badge badge-${t.priority}">${t.priority}</span>
+        ${meta.map(m => `<span>${escHtml(m)}</span>`).join('')}
+      </div>
+    </div>
+    <button class="complete-btn" data-id="${t.id}">✓ Done</button>
+  `;
+
+  card.querySelector('.complete-btn').addEventListener('click', async () => {
+    try {
+      await api(`/api/tasks/${t.id}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'completed' }),
+      });
+      card.style.opacity = '0';
+      card.style.transition = 'opacity 0.3s';
+      setTimeout(() => card.remove(), 300);
+      toast(`✓ "${t.title}" completed`);
+      // Refresh completed section if it's open
+      const section = document.getElementById('completed-section');
+      if (section.style.display !== 'none') {
+        completedLoaded = false;
+        loadCompletedTasks();
+      } else {
+        completedLoaded = false; // force reload next open
+      }
+    } catch (err) {
+      toast(`Error: ${err.message}`);
+    }
+  });
+
+  return card;
+}
+
+document.getElementById('add-task-btn').addEventListener('click', async () => {
+  const titleEl    = document.getElementById('new-task-title');
+  const priorityEl = document.getElementById('new-task-priority');
+  const projectEl  = document.getElementById('new-task-project');
+  const dueEl      = document.getElementById('new-task-due');
+  const msgEl      = document.getElementById('task-add-msg');
+
+  const title = titleEl.value.trim();
+  if (!title) { msgEl.textContent = 'Title is required'; return; }
+
+  msgEl.textContent = 'Saving…';
+  const body = {
+    title,
+    priority: priorityEl.value,
+    project_id: projectEl.value ? parseInt(projectEl.value) : null,
+    due_date: dueEl.value || null,
+  };
+
+  try {
+    const data = await api('/api/tasks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const newTask = data.data;
+    titleEl.value = '';
+    dueEl.value   = '';
+    msgEl.textContent = '';
+    const listEl = document.getElementById('tasks-list');
+    // Remove empty state if present
+    listEl.querySelector('.empty-state')?.remove();
+    listEl.insertBefore(buildTaskCard(newTask), listEl.firstChild);
+    toast(`Task "${newTask.title}" added`);
+  } catch (err) {
+    msgEl.textContent = `Error: ${err.message}`;
+  }
+});
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ACTIVITY
+══════════════════════════════════════════════════════════════════════════ */
+let currentPeriod = 'today';
+
+document.querySelectorAll('.filter-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    loadActivity(btn.dataset.period);
+  });
+});
+
+async function loadActivity(period) {
+  currentPeriod = period;
+  const appsEl    = document.getElementById('act-apps');
+  const dirsEl    = document.getElementById('act-dirs');
+  const domainsEl = document.getElementById('act-domains');
+
+  appsEl.innerHTML = `<div class="empty-state"><span class="spinner"></span> Loading…</div>`;
+  dirsEl.innerHTML = domainsEl.innerHTML = '';
+
+  document.getElementById('act-total-time').textContent = '—';
+  document.getElementById('act-top-app').textContent    = '—';
+  document.getElementById('act-top-domain').textContent = '—';
+
+  try {
+    let data;
+    if (period === 'today') {
+      const res = await api('/api/activity/today');
+      data = res.data;
+    } else {
+      const days = period === 'week' ? 7 : 30;
+      const res = await api(`/api/activity/summary?days=${days}`);
+      data = res.data;
+    }
+
+    // Summary cards
+    const apps    = data.app_usage    || [];
+    const dirs    = data.coding_time  || [];
+    const domains = data.browser_domains || [];
+
+    const totalSecs = apps.reduce((s, a) => s + (a.total_seconds || 0), 0)
+                   || dirs.reduce((s, d) => s + (d.total_seconds || 0), 0);
+
+    document.getElementById('act-total-time').textContent = totalSecs ? fmtSecs(totalSecs) : '—';
+    document.getElementById('act-top-app').textContent    = apps[0]?.app_class || apps[0]?.app_name || '—';
+    document.getElementById('act-top-domain').textContent = domains[0]?.domain
+      ? `${domains[0].domain} (${fmtSecs(domains[0].total_seconds)})` : '—';
+
+    // Apps list — use total_seconds for bar + display
+    renderBarList(appsEl, apps.slice(0, 15), a => a.app_class || a.app_name, a => a.total_seconds);
+
+    // Dirs list
+    renderBarList(dirsEl, dirs.slice(0, 15), d => d.working_directory?.split('/').pop() || d.working_directory, d => d.total_seconds);
+
+    // Domains list
+    renderBarList(domainsEl, domains.slice(0, 10), d => d.domain, d => d.total_seconds);
+
+  } catch (err) {
+    appsEl.innerHTML = `<div class="empty-state" style="color:var(--danger)">${err.message}</div>`;
+  }
+}
+
+function renderBarList(container, items, nameFn, minFn) {
+  if (!items || !items.length) {
+    container.innerHTML = `<div class="empty-state" style="font-size:0.8rem">No data</div>`;
+    return;
+  }
+  const maxMin = Math.max(...items.map(minFn));
+  container.innerHTML = '';
+  for (const item of items) {
+    const pct = maxMin ? Math.round((minFn(item) / maxMin) * 100) : 0;
+    const row = document.createElement('div');
+    row.className = 'activity-row';
+    row.innerHTML = `
+      <div class="activity-row-name" title="${escHtml(nameFn(item))}">${escHtml(nameFn(item))}</div>
+      <div class="activity-bar-wrap">
+        <div class="activity-bar"><div class="activity-bar-fill" style="width:${pct}%"></div></div>
+      </div>
+      <div class="activity-row-time">${fmtSecs(minFn(item))}</div>
+    `;
+    container.appendChild(row);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   GOALS
+══════════════════════════════════════════════════════════════════════════ */
+async function loadGoals() {
+  const grid = document.getElementById('goals-grid');
+  grid.innerHTML = `<div class="empty-state"><span class="spinner"></span> Loading…</div>`;
+  try {
+    const res   = await api('/api/goals?status=active');
+    const goals = res.data.goals || [];
+    grid.innerHTML = '';
+    if (!goals.length) {
+      grid.innerHTML = `<div class="empty-state">No active goals yet. Add one above!</div>`;
+      return;
+    }
+    for (const g of goals) grid.appendChild(buildGoalCard(g));
+  } catch (err) {
+    grid.innerHTML = `<div class="empty-state" style="color:var(--danger)">Error: ${err.message}</div>`;
+  }
+}
+
+function buildGoalCard(g) {
+  const card = document.createElement('div');
+  card.className = 'goal-card';
+  const targetStr = g.target_date
+    ? new Date(g.target_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+    : 'No deadline';
+  const pct = g.progress_percent || 0;
+  card.innerHTML = `
+    <div class="goal-card-header">
+      <div class="goal-title">${escHtml(g.title)}</div>
+      ${g.category ? `<span class="badge badge-cat">${escHtml(g.category)}</span>` : ''}
+    </div>
+    ${g.description ? `<div class="goal-meta">${escHtml(g.description.slice(0, 120))}</div>` : ''}
+    <div class="goal-meta">🗓 ${targetStr}</div>
+    <div>
+      <div class="goal-progress-label"><span>Progress</span><span>${pct}%</span></div>
+      <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
+    </div>
+  `;
+  return card;
+}
+
+document.getElementById('toggle-add-goal-btn').addEventListener('click', () => {
+  const form = document.getElementById('add-goal-form');
+  form.classList.toggle('open');
+});
+
+document.getElementById('save-goal-btn').addEventListener('click', async () => {
+  const title    = document.getElementById('goal-title').value.trim();
+  const category = document.getElementById('goal-category').value.trim();
+  const target   = document.getElementById('goal-target').value;
+
+  if (!title) { toast('Goal title is required'); return; }
+
+  // Use chat agent to add goal — reuses agentic tool loop
+  let prompt = `Add goal: ${title}`;
+  if (category) prompt += `, category: ${category}`;
+  if (target)   prompt += `, target date: ${target}`;
+
+  try {
+    const res = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: prompt, history: [] }),
+    });
+    // Drain stream
+    const reader = res.body.getReader();
+    while (true) { const { done } = await reader.read(); if (done) break; }
+
+    document.getElementById('goal-title').value    = '';
+    document.getElementById('goal-category').value = '';
+    document.getElementById('goal-target').value   = '';
+    document.getElementById('add-goal-form').classList.remove('open');
+    toast(`Goal "${title}" saved`);
+    tabLoaded['goals'] = false;
+    loadGoals();
+  } catch (err) {
+    toast(`Error: ${err.message}`);
+  }
+});
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   COMPLETED TASKS
+══════════════════════════════════════════════════════════════════════════ */
+let completedLoaded = false;
+
+document.getElementById('completed-toggle').addEventListener('click', () => {
+  const section = document.getElementById('completed-section');
+  const arrow   = document.getElementById('completed-toggle-arrow');
+  const open    = section.style.display === 'none';
+  section.style.display = open ? 'block' : 'none';
+  arrow.classList.toggle('open', open);
+  if (open && !completedLoaded) {
+    completedLoaded = true;
+    loadCompletedTasks();
+  }
+});
+
+async function loadCompletedTasks() {
+  const listEl = document.getElementById('completed-list');
+  listEl.innerHTML = `<div class="empty-state"><span class="spinner"></span> Loading…</div>`;
+  try {
+    const res   = await api('/api/tasks?status=completed&limit=50');
+    const tasks = res.data.tasks || [];
+
+    const badge = document.getElementById('completed-count-badge');
+    badge.textContent = tasks.length ? `${tasks.length}` : '';
+
+    if (!tasks.length) {
+      listEl.innerHTML = `<div class="empty-state">No completed tasks yet.</div>`;
+      return;
+    }
+    listEl.innerHTML = '';
+    for (const t of tasks) listEl.appendChild(buildCompletedCard(t));
+  } catch (err) {
+    listEl.innerHTML = `<div class="empty-state" style="color:var(--danger)">Failed to load: ${err.message}</div>`;
+  }
+}
+
+function buildCompletedCard(t) {
+  const project = projectsList.find(p => p.id === t.project_id);
+  const card = document.createElement('div');
+  card.className = 'task-card completed';
+  card.id = `completed-task-${t.id}`;
+
+  const meta = [];
+  if (t.updated_at) {
+    const d = new Date(t.updated_at);
+    meta.push(`completed ${d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`);
+  }
+  if (project) meta.push(project.name);
+
+  card.innerHTML = `
+    <div class="task-card-left">
+      <div class="task-title">${escHtml(t.title)}</div>
+      <div class="task-meta">
+        <span class="badge badge-${t.priority}">${t.priority}</span>
+        ${meta.map(m => `<span>${escHtml(m)}</span>`).join('')}
+      </div>
+    </div>
+    <button class="delete-btn" data-id="${t.id}" title="Delete permanently">🗑 Delete</button>
+  `;
+
+  card.querySelector('.delete-btn').addEventListener('click', async () => {
+    if (!confirm(`Delete "${t.title}" permanently?`)) return;
+    try {
+      await api(`/api/tasks/${t.id}`, { method: 'DELETE' });
+      card.style.opacity = '0';
+      card.style.transition = 'opacity 0.3s';
+      setTimeout(() => {
+        card.remove();
+        // Update badge count
+        const remaining = document.querySelectorAll('#completed-list .task-card').length;
+        const badge = document.getElementById('completed-count-badge');
+        badge.textContent = remaining ? `${remaining}` : '';
+        if (!remaining) {
+          document.getElementById('completed-list').innerHTML =
+            `<div class="empty-state">No completed tasks yet.</div>`;
+        }
+      }, 300);
+      toast(`Deleted "${t.title}"`);
+    } catch (err) {
+      toast(`Error: ${err.message}`);
+    }
+  });
+
+  return card;
+}
+
+/* ── Security helper ──────────────────────────────────────────────────────── */
+function escHtml(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   PLAN TAB
+══════════════════════════════════════════════════════════════════════════ */
+let currentPlanSlots = [];
+let planHistory = [];
+
+function fmtDuration(mins) {
+  if (mins < 60) return `${mins}m`;
+  const h = Math.floor(mins / 60), m = mins % 60;
+  return m ? `${h}h ${m}m` : `${h}h`;
+}
+
+function renderTimeline(slots) {
+  const container = document.getElementById('plan-timeline');
+  container.innerHTML = '';
+
+  if (!slots || !slots.length) {
+    container.innerHTML = `<div id="plan-empty">
+      <div style="font-size:2rem;margin-bottom:0.5rem;">📋</div>
+      No slots in this plan.
+    </div>`;
+    return;
+  }
+
+  for (const slot of slots) {
+    const type = slot.type || 'task';
+    const row = document.createElement('div');
+    row.className = 'timeline-slot';
+    row.innerHTML = `
+      <div class="slot-time">${escHtml(slot.start)}</div>
+      <div class="slot-bar-wrap">
+        <div class="slot-bar type-${escHtml(type)}">
+          <span>${escHtml(slot.title)}</span>
+          <span class="slot-dur">${fmtDuration(slot.duration_minutes)}</span>
+        </div>
+        ${slot.notes ? `<div style="font-size:0.72rem;color:var(--muted);padding-left:0.4rem;">${escHtml(slot.notes)}</div>` : ''}
+      </div>`;
+    container.appendChild(row);
+  }
+}
+
+async function loadPlan() {
+  try {
+    const res = await api('/api/planning/today');
+    const plan = res.data;
+    currentPlanSlots = plan.slots || [];
+
+    const d = new Date(plan.date + 'T12:00:00');
+    const label = d.toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short' });
+    document.getElementById('plan-title').textContent = `📋 Plan for ${label}`;
+    document.getElementById('plan-summary-text').textContent = plan.summary || '';
+
+    renderTimeline(currentPlanSlots);
+
+    if (plan.status === 'finalized') {
+      document.getElementById('plan-post-btn').disabled = true;
+      document.getElementById('plan-post-btn').textContent = 'Posted ✓';
+    }
+  } catch (err) {
+    document.getElementById('plan-timeline').innerHTML = `<div id="plan-empty">
+      <div style="font-size:2rem;margin-bottom:0.5rem;">📋</div>
+      No plan yet. Click <strong>Regenerate</strong> to create one.
+    </div>`;
+    document.getElementById('plan-summary-text').textContent = '';
+  }
+}
+
+async function patchSlots(slots) {
+  try {
+    await fetch('/api/planning/today', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ slots }),
+    });
+    currentPlanSlots = slots;
+  } catch (err) {
+    console.warn('Could not save plan slots:', err);
+  }
+}
+
+async function postToCalendar() {
+  const btn = document.getElementById('plan-post-btn');
+  btn.disabled = true;
+  btn.textContent = 'Posting…';
+  try {
+    const res = await api('/api/planning/finalize', { method: 'POST' });
+    const count = res.data.count;
+    toast(`Posted ${count} event${count !== 1 ? 's' : ''} to Google Calendar`);
+    btn.textContent = 'Posted ✓';
+  } catch (err) {
+    toast(`Error: ${err.message}`);
+    btn.disabled = false;
+    btn.textContent = 'Post to Calendar';
+  }
+}
+
+async function regeneratePlan() {
+  const btn = document.getElementById('plan-regen-btn');
+  btn.disabled = true;
+  btn.textContent = 'Generating…';
+  try {
+    const res = await api('/api/planning/regenerate', { method: 'POST' });
+    const plan = res.data;
+    currentPlanSlots = plan.slots || [];
+    document.getElementById('plan-summary-text').textContent = plan.summary || '';
+    renderTimeline(currentPlanSlots);
+    const postBtn = document.getElementById('plan-post-btn');
+    postBtn.disabled = false;
+    postBtn.textContent = 'Post to Calendar';
+    toast('Plan regenerated');
+    planHistory = [];
+    document.getElementById('plan-chat-messages').innerHTML = '';
+  } catch (err) {
+    toast(`Error: ${err.message}`);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Regenerate';
+  }
+}
+
+async function pollPlanStatus() {
+  try {
+    const res = await api('/api/planning/status');
+    const d = res.data;
+    const badge = document.getElementById('plan-badge');
+    if (d.has_plan && d.status === 'draft') {
+      badge.style.display = 'block';
+    } else {
+      badge.style.display = 'none';
+    }
+  } catch {}
+}
+
+/* Plan chat */
+function addPlanMessage(role, text, isMarkdown = false) {
+  const container = document.getElementById('plan-chat-messages');
+  const row = document.createElement('div');
+  row.className = `msg-row ${role}`;
+  const avatar = document.createElement('div');
+  avatar.className = `msg-avatar ${role === 'user' ? 'user-av' : 'ai-av'}`;
+  avatar.textContent = role === 'user' ? '👤' : '🤖';
+  const bubble = document.createElement('div');
+  bubble.className = 'msg-bubble';
+  if (isMarkdown) bubble.innerHTML = marked.parse(text);
+  else bubble.textContent = text;
+  row.appendChild(avatar);
+  row.appendChild(bubble);
+  container.appendChild(row);
+  container.scrollTop = container.scrollHeight;
+  return bubble;
+}
+
+function addPlanThinking() {
+  const container = document.getElementById('plan-chat-messages');
+  const row = document.createElement('div');
+  row.className = 'msg-row assistant';
+  row.id = 'plan-thinking-row';
+  row.innerHTML = `<div class="msg-avatar ai-av">🤖</div>
+    <div class="msg-bubble">
+      <span class="thinking-dot"></span>
+      <span class="thinking-dot"></span>
+      <span class="thinking-dot"></span>
+    </div>`;
+  container.appendChild(row);
+  container.scrollTop = container.scrollHeight;
+}
+
+function removePlanThinking() {
+  const el = document.getElementById('plan-thinking-row');
+  if (el) el.remove();
+}
+
+async function sendPlanMessage() {
+  const input = document.getElementById('plan-chat-input');
+  const sendBtn = document.getElementById('plan-chat-send');
+  const text = input.value.trim();
+  if (!text || sendBtn.disabled) return;
+
+  input.value = '';
+  input.style.height = 'auto';
+  addPlanMessage('user', text);
+  sendBtn.disabled = true;
+  addPlanThinking();
+
+  // Build history with a hidden context message containing current slots
+  const contextMsg = {
+    role: 'assistant',
+    content: `Current schedule JSON:\n\`\`\`json\n${JSON.stringify(currentPlanSlots, null, 2)}\n\`\`\`\n\nTo update the schedule, reply with an updated JSON array in a \`\`\`json block. Otherwise just answer the question.`,
+  };
+  const historyToSend = [contextMsg, ...planHistory];
+
+  let assistantText = '';
+  let bubble = null;
+
+  try {
+    const res = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: text, history: historyToSend }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      const parts = buf.split('\n\n');
+      buf = parts.pop();
+
+      for (const part of parts) {
+        const line = part.trim();
+        if (!line.startsWith('data:')) continue;
+        let evt;
+        try { evt = JSON.parse(line.slice(5).trim()); } catch { continue; }
+
+        if (evt.type === 'token') {
+          removePlanThinking();
+          assistantText += evt.text;
+          if (!bubble) bubble = addPlanMessage('assistant', '', false);
+          bubble.innerHTML = marked.parse(assistantText);
+          document.getElementById('plan-chat-messages').scrollTop = 999999;
+        } else if (evt.type === 'error') {
+          removePlanThinking();
+          if (!bubble) bubble = addPlanMessage('assistant', '', false);
+          bubble.textContent = 'Error: ' + evt.text;
+          bubble.style.color = 'var(--danger)';
+        } else if (evt.type === 'done') {
+          removePlanThinking();
+        }
+      }
+    }
+
+    // Extract JSON slots from reply
+    const m = assistantText.match(/```json\n([\s\S]+?)\n```/);
+    if (m) {
+      try {
+        const updatedSlots = JSON.parse(m[1]);
+        if (Array.isArray(updatedSlots)) {
+          await patchSlots(updatedSlots);
+          renderTimeline(updatedSlots);
+          toast('Schedule updated');
+        }
+      } catch {}
+    }
+
+    planHistory.push({ role: 'user', content: text });
+    planHistory.push({ role: 'assistant', content: assistantText });
+    // Keep history short
+    if (planHistory.length > 20) planHistory = planHistory.slice(-20);
+
+  } catch (err) {
+    removePlanThinking();
+    addPlanMessage('assistant', `Error: ${err.message}`);
+  } finally {
+    sendBtn.disabled = false;
+    input.focus();
+  }
+}
+
+document.getElementById('plan-post-btn').addEventListener('click', postToCalendar);
+document.getElementById('plan-regen-btn').addEventListener('click', regeneratePlan);
+document.getElementById('plan-chat-send').addEventListener('click', sendPlanMessage);
+document.getElementById('plan-chat-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendPlanMessage(); }
+});
+document.getElementById('plan-chat-input').addEventListener('input', function() {
+  this.style.height = 'auto';
+  this.style.height = Math.min(this.scrollHeight, 100) + 'px';
+});
+
+// Poll status every 60 seconds
+pollPlanStatus();
+setInterval(pollPlanStatus, 60_000);
+</script>
 </body>
 </html>

@@ -201,6 +201,13 @@ def create_project(
 
 
 @mcp.tool()
+def delete_task(task_id: int) -> str:
+    """Permanently delete a task by ID. Use for duplicates or mistakes — prefer complete_task for finished work."""
+    with _db() as db:
+        return execute_tool("delete_task", {"task_id": task_id}, db)
+
+
+@mcp.tool()
 def delete_project(
     project_id: Optional[int] = None,
     project_name: Optional[str] = None,

@@ -14,11 +14,18 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "complete_task",
-            "description": "Mark a task as completed. Use when the user says they finished, completed, or did a task.",
+            "description": (
+                "Mark a task as completed. "
+                "ONLY call this when the user EXPLICITLY states they finished a specific task — "
+                "e.g. 'I did #12', 'finished the GRE registration', 'mark #5 as done'. "
+                "Do NOT call this because a task is mentioned, discussed, listed, or asked about. "
+                "Do NOT call this based on assumptions or implied context. "
+                "If unsure whether the user actually completed something, ask them first."
+            ),
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "task_id": {"type": "integer", "description": "The task ID to mark complete"},
+                    "task_id": {"type": "integer", "description": "The ID of the task the user explicitly said they completed"},
                 },
                 "required": ["task_id"],
             },
@@ -28,23 +35,28 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "add_task",
-            "description": "Create a new task. Every task MUST be linked to a project. Use project_id (integer) from the context, or project_name (string) to match by name.",
+            "description": (
+                "Create a new task and link it to a project. "
+                "Every task must belong to a project — provide project_id (preferred, from the context list) "
+                "or project_name (matched by name). "
+                "If neither is clear from context, ask the user which project before creating."
+            ),
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "title": {"type": "string", "description": "Task title (required — must always be provided)"},
-                    "project_id": {"type": "integer", "description": "Project ID to link this task to (preferred — use the ID from context)"},
-                    "project_name": {"type": "string", "description": "Project name to link this task to (used if project_id is unknown)"},
+                    "title": {"type": "string", "description": "Task title"},
+                    "project_id": {"type": "integer", "description": "Project ID from the context list (preferred)"},
+                    "project_name": {"type": "string", "description": "Project name to match when project_id is unknown"},
                     "priority": {
                         "type": "string",
                         "enum": ["low", "medium", "high", "critical"],
-                        "description": "Priority level",
+                        "description": "Priority level — default to medium if not specified",
                     },
                     "estimate_minutes": {"type": "integer", "description": "Estimated time in minutes"},
-                    "due_date": {"type": "string", "description": "Due date as YYYY-MM-DD or relative like 'tomorrow', 'friday'"},
-                    "notes": {"type": "string", "description": "Any additional context or description"},
+                    "due_date": {"type": "string", "description": "Due date as YYYY-MM-DD or relative ('tomorrow', 'friday', 'next week')"},
+                    "notes": {"type": "string", "description": "Additional context or description"},
                 },
-                "required": ["title", "project_id"],
+                "required": ["title"],
             },
         },
     },
@@ -52,16 +64,24 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "update_task",
-            "description": "Update an existing task's priority, due date, estimate, or status.",
+            "description": (
+                "Update a task's priority, due date, estimate, description, or status. "
+                "Valid status values: pending, in_progress, blocked, cancelled. "
+                "Do NOT use status='completed' here — use complete_task to mark a task done."
+            ),
             "parameters": {
                 "type": "object",
                 "properties": {
                     "task_id": {"type": "integer", "description": "The task ID to update"},
                     "priority": {"type": "string", "enum": ["low", "medium", "high", "critical"]},
-                    "status": {"type": "string", "enum": ["pending", "in_progress", "blocked", "cancelled"]},
+                    "status": {
+                        "type": "string",
+                        "enum": ["pending", "in_progress", "blocked", "cancelled"],
+                        "description": "New status — do NOT use 'completed', use complete_task for that",
+                    },
                     "due_date": {"type": "string", "description": "New due date as YYYY-MM-DD"},
                     "estimate_minutes": {"type": "integer"},
-                    "description": {"type": "string", "description": "Update the task description/notes"},
+                    "description": {"type": "string", "description": "Updated description or notes"},
                 },
                 "required": ["task_id"],
             },
@@ -71,7 +91,7 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "add_blocker",
-            "description": "Log a blocker or problem the user is facing. Use when they mention being stuck, blocked, or having an issue.",
+            "description": "Log a blocker or problem the user is facing. Use when they mention being stuck, blocked, waiting on someone, or have an unresolved issue preventing progress.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -79,7 +99,7 @@ TOOLS = [
                     "severity": {
                         "type": "string",
                         "enum": ["low", "medium", "high", "critical"],
-                        "description": "How serious is this blocker",
+                        "description": "How seriously this is blocking progress",
                     },
                     "task_id": {"type": "integer", "description": "Related task ID if applicable"},
                 },
@@ -91,14 +111,14 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "add_goal",
-            "description": "Add a new goal. Use when the user mentions a longer-term objective or aspiration.",
+            "description": "Add a new longer-term goal or objective. Use for aspirations that span weeks or months — not for immediate tasks. Good for career goals, learning targets, application milestones.",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "title": {"type": "string", "description": "Goal title"},
-                    "target_date": {"type": "string", "description": "Target date as YYYY-MM-DD"},
-                    "category": {"type": "string", "description": "Category e.g. education, career, health, project"},
-                    "description": {"type": "string"},
+                    "target_date": {"type": "string", "description": "Target completion date as YYYY-MM-DD"},
+                    "category": {"type": "string", "description": "Category e.g. education, career, health, finance, project"},
+                    "description": {"type": "string", "description": "More detail about the goal"},
                 },
                 "required": ["title"],
             },
@@ -186,6 +206,25 @@ TOOLS = [
     {
         "type": "function",
         "function": {
+            "name": "delete_task",
+            "description": (
+                "Permanently delete a task from the database. "
+                "Use when the user explicitly asks to delete or remove a task (not just complete it). "
+                "Prefer complete_task for finished work; use delete_task only for duplicates, "
+                "mistakes, or tasks the user wants permanently removed."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "task_id": {"type": "integer", "description": "ID of the task to delete"},
+                },
+                "required": ["task_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "delete_project",
             "description": "Delete a project by ID or name. Tasks linked to it will be unlinked but not deleted. Use only when the user explicitly asks to remove a project.",
             "parameters": {
@@ -211,6 +250,8 @@ def execute_tool(name: str, arguments: dict, db) -> str:
             return _add_task(arguments, db)
         elif name == "update_task":
             return _update_task(arguments, db)
+        elif name == "delete_task":
+            return _delete_task(arguments, db)
         elif name == "add_blocker":
             return _add_blocker(arguments, db)
         elif name == "add_goal":
@@ -241,6 +282,18 @@ def _complete_task(args: dict, db) -> str:
     if not task:
         return f"Task #{args['task_id']} not found."
     return f"Marked task #{task.id} as completed: '{task.title}'"
+
+
+def _delete_task(args: dict, db) -> str:
+    from app.models import Task
+    task_id = args.get("task_id")
+    task = db.query(Task).filter(Task.id == task_id).first()
+    if not task:
+        return f"Task #{task_id} not found."
+    title = task.title
+    db.delete(task)
+    db.commit()
+    return f"Deleted task #{task_id}: '{title}'"
 
 
 def _add_task(args: dict, db) -> str:

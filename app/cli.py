@@ -534,69 +534,110 @@ def _build_system_prompt(ctx: dict) -> str:
     """Build the system prompt with full current context."""
     now = datetime.now()
 
+    # Build a project lookup for annotating tasks
+    project_by_id = {p.id: p.name for p in ctx["projects"]}
+
     lines = [
-        f"You are a personal AI assistant for a software developer.",
-        f"Current date and time: {now.strftime('%A, %B %d, %Y at %H:%M')} (local time).",
-        f"Be direct, concise, and specific. Reference actual task titles and project names.",
-        f"You can help add tasks, mark things done, give advice, and answer questions about work.",
+        f"You are a personal productivity assistant for a software developer who is also",
+        f"applying for Masters programs abroad.",
+        f"Today is {now.strftime('%A, %B %d, %Y')} and the time is {now.strftime('%H:%M')} (local).",
         "",
-        "── CURRENT TASKS ──",
+        "═══ TOOL USAGE RULES — follow these exactly ═══",
+        "",
+        "complete_task",
+        "  ONLY call this when the user EXPLICITLY states they finished a specific task.",
+        "  Required triggers: 'I did X', 'I've done X', 'finished X', 'X is complete',",
+        "  'mark X as done', 'tick off #ID'.",
+        "  NEVER call it because:",
+        "    • a task is being mentioned or discussed",
+        "    • the user asks 'what tasks do I have' or similar",
+        "    • you think the task sounds finished based on context",
+        "    • the user says 'I need to do X' (that's the opposite — they haven't done it)",
+        "  When in doubt, ask: 'Did you complete that, or is it still pending?'",
+        "",
+        "add_task",
+        "  Call proactively when the user mentions something new that should be tracked.",
+        "  Always pick the most relevant project from the list below — do not guess randomly.",
+        "  If genuinely unclear which project, ask once before creating.",
+        "",
+        "add_goal / add_blocker / save_note",
+        "  Call proactively. Goals for longer-term objectives, blockers for things preventing",
+        "  progress, notes for decisions or info worth saving.",
+        "",
+        "update_task",
+        "  Use to change priority, due date, estimate, or status (pending/in_progress/blocked).",
+        "  Do NOT use status='completed' here — only complete_task marks a task done.",
+        "",
+        "delete_project",
+        "  Always confirm with the user before calling. This cannot be undone.",
+        "",
+        "list_directory / read_file",
+        "  Use list_directory first to explore, then read_file to read. Read-only — you",
+        "  cannot create or modify files.",
+        "",
+        "═══ RESPONSE STYLE ═══",
+        "• Be direct and concise. Skip filler phrases ('Great!', 'Of course!', 'Absolutely!').",
+        "• Reference tasks by ID and title, e.g. '#12 Contact professors'.",
+        "• When you call a tool, briefly confirm the outcome in one line.",
+        "• If you're unsure what the user wants, ask a short clarifying question.",
+        "• Do not repeat information the user just told you.",
+        "",
+        "═══ CURRENT STATE ═══",
     ]
 
+    # Overdue — highest urgency, show all
     if ctx["overdue"]:
-        lines.append(f"OVERDUE ({len(ctx['overdue'])}):")
-        for t in ctx["overdue"][:5]:
+        lines.append(f"OVERDUE ({len(ctx['overdue'])}) — needs immediate attention:")
+        for t in ctx["overdue"]:
             due = t.due_date.strftime("%b %d") if t.due_date else "?"
-            lines.append(f"  [{t.priority.upper()}] #{t.id} {t.title} (due {due})")
+            proj = project_by_id.get(t.project_id, "")
+            proj_str = f" [{proj}]" if proj else ""
+            lines.append(f"  [{t.priority.upper()}] #{t.id} {t.title}{proj_str} (due {due})")
 
+    # Due soon
     if ctx["due_soon"]:
         lines.append(f"DUE IN 3 DAYS ({len(ctx['due_soon'])}):")
-        for t in ctx["due_soon"][:5]:
+        for t in ctx["due_soon"]:
             due = t.due_date.strftime("%b %d") if t.due_date else "?"
-            lines.append(f"  [{t.priority.upper()}] #{t.id} {t.title} (due {due})")
+            proj = project_by_id.get(t.project_id, "")
+            proj_str = f" [{proj}]" if proj else ""
+            lines.append(f"  [{t.priority.upper()}] #{t.id} {t.title}{proj_str} (due {due})")
 
+    # Pending (cap at 15 to keep context manageable)
     if ctx["pending"]:
-        lines.append(f"PENDING ({ctx['pending_count']}):")
-        for t in ctx["pending"][:8]:
-            est = f"{t.estimate_minutes}min" if t.estimate_minutes else "?"
-            lines.append(f"  [{t.priority.upper()}] #{t.id} {t.title} | est {est}")
+        lines.append(f"PENDING ({ctx['pending_count']} total, showing up to 15):")
+        for t in ctx["pending"][:15]:
+            est = f"{t.estimate_minutes}min" if t.estimate_minutes else "—"
+            proj = project_by_id.get(t.project_id, "")
+            proj_str = f" [{proj}]" if proj else ""
+            lines.append(f"  [{t.priority.upper()}] #{t.id} {t.title}{proj_str} | est {est}")
 
+    # Completed today — for reference only, do NOT infer these are real completions
     if ctx["completed_today"]:
-        lines.append(f"COMPLETED TODAY ({len(ctx['completed_today'])}):")
+        lines.append(f"COMPLETED TODAY ({len(ctx['completed_today'])}) — shown for reference:")
         for t in ctx["completed_today"]:
-            lines.append(f"  ✓ {t.title}")
+            lines.append(f"  ✓ #{t.id} {t.title}")
 
     lines.append("")
-    lines.append("── PROJECTS (use project_id when creating tasks — every task requires a project) ──")
+    lines.append("PROJECTS (every task must link to one — use the ID):")
     for p in ctx["projects"]:
         last = p.last_activity_at.strftime("%b %d") if p.last_activity_at else "never"
-        lines.append(f"  #{p.id} {p.name} | sessions: {p.total_sessions} | last: {last}")
+        lines.append(f"  #{p.id} {p.name} | last active: {last}")
 
     if ctx["goals"]:
         lines.append("")
-        lines.append("── GOALS ──")
-        for g in ctx["goals"][:5]:
+        lines.append("ACTIVE GOALS:")
+        for g in ctx["goals"][:8]:
             target = g.target_date.strftime("%b %d, %Y") if g.target_date else "no deadline"
-            lines.append(f"  • {g.title} | target: {target} | {g.status}")
+            lines.append(f"  • #{g.id} {g.title} | {g.category or 'general'} | target: {target}")
 
     lines.append("")
-    lines.append(f"Claude Code sessions today: {ctx['sessions_today']}")
+    lines.append(f"Coding sessions today: {ctx['sessions_today']}")
 
     if ctx["eod_text"]:
         lines.append("")
-        lines.append("── TODAY'S EOD REPORT ──")
-        lines.append(ctx["eod_text"][:800])
-
-    lines.append("")
-    lines.append(
-        "You have tools available to act directly on the user's data: "
-        "add_task, complete_task, update_task, add_blocker, add_goal, save_note, "
-        "list_directory, read_file. "
-        "Use them proactively when the user mentions something that should be recorded, "
-        "completed, or updated. Don't ask for permission — just do it and confirm what you did. "
-        "For file/directory access, always use list_directory first to explore, then read_file to read content. "
-        "Read-only access only — you cannot write or modify files on disk."
-    )
+        lines.append("TODAY'S EOD SUMMARY:")
+        lines.append(ctx["eod_text"][:600])
 
     return "\n".join(lines)
 

@@ -50,7 +50,7 @@ class ActivityTracker:
             "end_time IS NOT NULL",
             "working_directory IS NOT NULL"
         ]
-        params = [start.isoformat(), end.isoformat()]
+        params = [start.strftime("%Y-%m-%d %H:%M:%S"), end.strftime("%Y-%m-%d %H:%M:%S")]
 
         if project_path:
             where_clauses.append("working_directory LIKE ?")
@@ -60,19 +60,23 @@ class ActivityTracker:
             SELECT
                 working_directory,
                 ROUND(SUM(
-                    (julianday(end_time) - julianday(start_time)) * 24 * 60
-                ), 1) as total_minutes
+                    (julianday(end_time) - julianday(start_time)) * 86400
+                ), 1) as total_seconds
             FROM terminal_activity
             WHERE {' AND '.join(where_clauses)}
             GROUP BY working_directory
-            ORDER BY total_minutes DESC
+            ORDER BY total_seconds DESC
         """
 
         try:
             with self._connect() as conn:
                 cursor = conn.execute(query, params)
                 return [
-                    {"working_directory": row[0], "total_minutes": row[1]}
+                    {
+                        "working_directory": row[0],
+                        "total_seconds": row[1] or 0,
+                        "total_minutes": round((row[1] or 0) / 60, 1),
+                    }
                     for row in cursor.fetchall()
                 ]
         except Exception as e:
@@ -84,10 +88,10 @@ class ActivityTracker:
         start_date: Optional[datetime] = None,
         end_date: Optional[datetime] = None
     ) -> list[dict]:
-        """Get app usage aggregated by app name.
+        """Get app usage aggregated by app class (same grouping as ActivityTracker dashboard).
 
         Returns:
-            List of dicts with app_name, app_class, total_minutes
+            List of dicts with app_name, app_class, total_seconds, total_minutes, session_count
         """
         if not self.available:
             return []
@@ -97,24 +101,35 @@ class ActivityTracker:
 
         query = """
             SELECT
-                app_name,
                 app_class,
+                app_name,
+                COUNT(*) as session_count,
                 ROUND(SUM(
-                    (julianday(COALESCE(end_time, datetime('now'))) - julianday(start_time)) * 24 * 60
-                ), 1) as total_minutes
+                    CASE
+                        WHEN end_time IS NOT NULL
+                        THEN (julianday(end_time) - julianday(start_time)) * 86400
+                        ELSE 0
+                    END
+                ), 1) as total_seconds
             FROM window_activity
             WHERE start_time >= ?
               AND start_time <= ?
               AND app_name IS NOT NULL
-            GROUP BY app_name, app_class
-            ORDER BY total_minutes DESC
+            GROUP BY app_class
+            ORDER BY total_seconds DESC
         """
 
         try:
             with self._connect() as conn:
-                cursor = conn.execute(query, [start.isoformat(), end.isoformat()])
+                cursor = conn.execute(query, [start.strftime("%Y-%m-%d %H:%M:%S"), end.strftime("%Y-%m-%d %H:%M:%S")])
                 return [
-                    {"app_name": row[0], "app_class": row[1], "total_minutes": row[2]}
+                    {
+                        "app_name": row[1] or row[0],
+                        "app_class": row[0],
+                        "session_count": row[2],
+                        "total_seconds": row[3] or 0,
+                        "total_minutes": round((row[3] or 0) / 60, 1),
+                    }
                     for row in cursor.fetchall()
                 ]
         except Exception as e:
@@ -127,10 +142,10 @@ class ActivityTracker:
         end_date: Optional[datetime] = None,
         limit: int = 20
     ) -> list[dict]:
-        """Get browser activity aggregated by domain.
+        """Get browser time by domain using browser_sessions (has start/end times).
 
         Returns:
-            List of dicts with domain and visit_count
+            List of dicts with domain, total_seconds, total_minutes, session_count
         """
         if not self.available:
             return []
@@ -141,21 +156,33 @@ class ActivityTracker:
         query = """
             SELECT
                 domain,
-                COUNT(*) as visits
-            FROM browser_activity
-            WHERE timestamp >= ?
-              AND timestamp <= ?
+                COUNT(*) as session_count,
+                ROUND(SUM(
+                    CASE
+                        WHEN end_time IS NOT NULL
+                        THEN (julianday(end_time) - julianday(start_time)) * 86400
+                        ELSE 0
+                    END
+                ), 1) as total_seconds
+            FROM browser_sessions
+            WHERE start_time >= ?
+              AND start_time <= ?
               AND domain IS NOT NULL
             GROUP BY domain
-            ORDER BY visits DESC
+            ORDER BY total_seconds DESC
             LIMIT ?
         """
 
         try:
             with self._connect() as conn:
-                cursor = conn.execute(query, [start.isoformat(), end.isoformat(), limit])
+                cursor = conn.execute(query, [start.strftime("%Y-%m-%d %H:%M:%S"), end.strftime("%Y-%m-%d %H:%M:%S"), limit])
                 return [
-                    {"domain": row[0], "visits": row[1]}
+                    {
+                        "domain": row[0],
+                        "session_count": row[1],
+                        "total_seconds": row[2] or 0,
+                        "total_minutes": round((row[2] or 0) / 60, 1),
+                    }
                     for row in cursor.fetchall()
                 ]
         except Exception as e:
@@ -209,11 +236,11 @@ class ActivityTracker:
         try:
             with self._connect() as conn:
                 switches = conn.execute(
-                    switch_query, [start.isoformat(), end.isoformat()]
+                    switch_query, [start.strftime("%Y-%m-%d %H:%M:%S"), end.strftime("%Y-%m-%d %H:%M:%S")]
                 ).fetchone()[0]
 
                 active = conn.execute(
-                    active_query, [start.isoformat(), end.isoformat()]
+                    active_query, [start.strftime("%Y-%m-%d %H:%M:%S"), end.strftime("%Y-%m-%d %H:%M:%S")]
                 ).fetchone()[0] or 0
 
                 return {
@@ -252,7 +279,7 @@ class ActivityTracker:
 
         try:
             with self._connect() as conn:
-                cursor = conn.execute(query, [since.isoformat()])
+                cursor = conn.execute(query, [since.strftime("%Y-%m-%d %H:%M:%S")])
                 return [
                     {"hour": row[0], "avg_minutes": row[1]}
                     for row in cursor.fetchall()

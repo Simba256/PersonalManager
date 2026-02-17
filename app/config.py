@@ -55,6 +55,9 @@ class Settings(BaseSettings):
     caldav_username: Optional[str] = Field(default=None, alias="CALDAV_USERNAME")
     caldav_password: Optional[str] = Field(default=None, alias="CALDAV_PASSWORD")
 
+    # Timezone
+    timezone: str = Field(default="UTC", alias="TIMEZONE")
+
     @property
     def base_dir(self) -> Path:
         """Get base directory of the project."""

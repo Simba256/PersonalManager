@@ -5,11 +5,20 @@ from datetime import datetime
 from loguru import logger
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
+import pytz
+
+from app.config import settings
 
 
 def create_scheduler() -> AsyncIOScheduler:
     """Create and configure the APScheduler instance."""
     jobstore = SQLAlchemyJobStore(url="sqlite:///data/jobs.db")
+
+    try:
+        tz = pytz.timezone(settings.timezone)
+    except Exception:
+        logger.warning(f"Unknown timezone '{settings.timezone}', falling back to UTC")
+        tz = pytz.utc
 
     scheduler = AsyncIOScheduler(
         jobstores={"default": jobstore},
@@ -18,7 +27,7 @@ def create_scheduler() -> AsyncIOScheduler:
             "max_instances": 1,     # Prevent overlapping runs
             "misfire_grace_time": 300  # 5 min grace period
         },
-        timezone="UTC"
+        timezone=tz
     )
     return scheduler
 
@@ -49,12 +58,12 @@ def register_jobs(scheduler: AsyncIOScheduler) -> None:
     # ── Daily Jobs ─────────────────────────────────────────────────────────
 
     scheduler.add_job(
-        job_daily_plan,
+        job_nightly_planning,
         "cron",
-        hour=7, minute=0,
-        id="daily_plan",
+        hour=2, minute=0,
+        id="nightly_planning",
         replace_existing=True,
-        name="Daily Planning"
+        name="Nightly Interactive Planning"
     )
 
     scheduler.add_job(
@@ -142,41 +151,23 @@ async def job_git_monitor():
         logger.error(f"Git monitor job failed: {e}")
 
 
-async def job_daily_plan():
-    """Generate daily plan and create check-in event at 7 AM."""
+async def job_nightly_planning():
+    """Generate interactive daily plan for tomorrow at 2 AM."""
+    import asyncio
+    from datetime import date, timedelta
+
     try:
-        from app.agent.planner import DailyPlanner
-        from app.calendar.sync import CalendarSync
-        from app.database import SessionLocal
+        from app.agent.nightly_planner import NightlyPlanner
 
-        db = SessionLocal()
-        try:
-            planner = DailyPlanner(db)
-            plan = planner.generate_plan()
-
-            plan_text = plan["plan_text"]
-            logger.info(
-                f"Daily plan generated ({'AI' if plan['ai_generated'] else 'rule-based'}): "
-                f"{plan['pending_count']} pending, {plan['overdue_count']} overdue"
-            )
-
-            # Create check-in calendar event with the plan
-            sync = CalendarSync()
-            sync.create_daily_checkin(plan_text=plan_text)
-
-            # Schedule pending tasks as focus blocks
-            from app.services.task_service import TaskService
-            task_service = TaskService(db)
-            pending = task_service.get_pending_for_schedule()
-            if pending:
-                sync.create_focus_blocks_for_tasks(pending[:10])
-
-            sync.close()
-        finally:
-            db.close()
-
+        tomorrow = date.today() + timedelta(days=1)
+        planner = NightlyPlanner()
+        plan = await asyncio.to_thread(planner.run, tomorrow)
+        logger.info(
+            f"Nightly plan generated for {tomorrow}: "
+            f"{len(plan['slots'])} slots, status={plan['status']}"
+        )
     except Exception as e:
-        logger.error(f"Daily plan job failed: {e}")
+        logger.error(f"Nightly planning job failed: {e}")
 
 
 async def job_eod_checkin():

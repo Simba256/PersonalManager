@@ -55,6 +55,46 @@ _scheduler = create_scheduler()
 _session_watcher = SessionWatcher()
 
 
+def _is_tracker_running() -> bool:
+    """Check whether tracker.py is already running by scanning /proc cmdlines."""
+    import os
+    for pid in os.listdir("/proc"):
+        if not pid.isdigit():
+            continue
+        try:
+            cmdline = open(f"/proc/{pid}/cmdline").read().replace("\x00", " ")
+            if "tracker.py" in cmdline:
+                return True
+        except OSError:
+            pass
+    return False
+
+
+def _start_activity_tracker():
+    """Start the ActivityTracker daemon as an independent background process."""
+    import subprocess
+    from pathlib import Path
+
+    tracker_dir = Path(settings.activity_tracker_db).parent
+    tracker_script = tracker_dir / "tracker.py"
+
+    if not tracker_script.exists():
+        logger.warning(f"Activity Tracker script not found: {tracker_script}")
+        return
+
+    log_path = tracker_dir / "tracker.log"
+    with open(log_path, "a") as log_fh:
+        subprocess.Popen(
+            ["python3", str(tracker_script)],
+            cwd=str(tracker_dir),
+            stdout=log_fh,
+            stderr=log_fh,
+            # Detach completely — survives PM restarts
+            start_new_session=True,
+        )
+    logger.info(f"Activity Tracker started (log: {log_path})")
+
+
 @app.on_event("startup")
 async def startup_event():
     """Run on application startup."""
@@ -67,6 +107,16 @@ async def startup_event():
     (settings.data_dir / "logs").mkdir(parents=True, exist_ok=True)
     (settings.data_dir / "sessions").mkdir(parents=True, exist_ok=True)
     (settings.data_dir / "backups").mkdir(parents=True, exist_ok=True)
+
+    # Ensure Activity Tracker daemon is running
+    if _is_tracker_running():
+        logger.info("Activity Tracker already running")
+    else:
+        logger.info("Activity Tracker not running — starting it...")
+        try:
+            _start_activity_tracker()
+        except Exception as e:
+            logger.warning(f"Could not start Activity Tracker: {e}")
 
     # Import any session files dropped while offline
     _session_watcher.scan_existing()
@@ -169,12 +219,15 @@ async def status():
 
 
 # Import and register routers
-from app.web.routes import tasks_router, projects_router, activity_router, calendar_router, agent_router
+from app.web.routes import tasks_router, projects_router, activity_router, calendar_router, agent_router, chat_router, goals_router, planning_router
 app.include_router(tasks_router)
 app.include_router(projects_router)
 app.include_router(activity_router)
 app.include_router(calendar_router)
 app.include_router(agent_router)
+app.include_router(chat_router)
+app.include_router(goals_router)
+app.include_router(planning_router)
 
 
 if __name__ == "__main__":
