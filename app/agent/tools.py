@@ -382,11 +382,12 @@ def _create_calendar_reminder(args: dict) -> str:
     duration = args.get("duration_minutes", 30)
     end_dt = parsed_dt + timedelta(minutes=duration)
 
+    from app.calendar.google import _local_tz
     event_data = {
         "summary": args["title"],
         "description": args.get("description", ""),
-        "start": {"dateTime": parsed_dt.isoformat(), "timeZone": "UTC"},
-        "end": {"dateTime": end_dt.isoformat(), "timeZone": "UTC"},
+        "start": {"dateTime": parsed_dt.isoformat(), "timeZone": _local_tz()},
+        "end": {"dateTime": end_dt.isoformat(), "timeZone": _local_tz()},
         "reminders": {
             "useDefault": False,
             "overrides": [
