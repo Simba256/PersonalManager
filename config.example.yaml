@@ -1,0 +1,323 @@
+# Personal Manager Configuration
+# Copy this file to config.yaml and customize for your setup
+
+# Application Settings
+app:
+  host: "127.0.0.1"  # Listen address (127.0.0.1 for local only)
+  port: 8000
+  debug: false  # Enable debug mode (development only)
+  log_level: "INFO"  # DEBUG, INFO, WARNING, ERROR, CRITICAL
+  reload: false  # Auto-reload on code changes (development only)
+
+# Database Configuration
+database:
+  url: "sqlite:///data/agent.db"  # SQLite database path
+  echo: false  # Log all SQL queries (development only)
+  pool_size: 5
+  max_overflow: 10
+
+# Activity Tracker Integration
+activity_tracker:
+  enabled: true
+  db_path: "/media/shared/personalProjects/ActivityTracker/activity.db"
+  read_only: true
+
+# Calendar Integration
+calendar:
+  # Google Calendar
+  google:
+    enabled: true
+    credentials_path: "~/.personal-manager/credentials/google_credentials.json"
+    token_path: "~/.personal-manager/tokens/google_token.json"
+
+    # Dedicated calendars (created automatically on first run)
+    calendars:
+      inbox:
+        name: "Agent Inbox"
+        color: "9"  # Blue
+      focus_blocks:
+        name: "Focus Blocks"
+        color: "10"  # Green
+      checkins:
+        name: "Check-ins"
+        color: "4"  # Pink
+      insights:
+        name: "Insights"
+        color: "5"  # Yellow
+
+  # CalDAV (NextCloud, Fastmail, etc.)
+  caldav:
+    enabled: false
+    url: "https://nextcloud.example.com/remote.php/dav"
+    username: "your_username"
+    password: "${CALDAV_PASSWORD}"  # From environment variable
+
+    calendars:
+      inbox:
+        name: "Agent Inbox"
+      focus_blocks:
+        name: "Focus Blocks"
+      checkins:
+        name: "Check-ins"
+      insights:
+        name: "Insights"
+
+# LLM Configuration
+llm:
+  default_provider: "anthropic"  # "openai" or "anthropic"
+
+  # OpenAI
+  openai:
+    api_key: "${OPENAI_API_KEY}"  # From environment variable
+    model: "gpt-4-turbo"
+    temperature: 0.7
+    max_tokens: 2000
+
+  # Anthropic
+  anthropic:
+    api_key: "${ANTHROPIC_API_KEY}"  # From environment variable
+    model: "claude-3-5-sonnet-20250129"
+    temperature: 0.7
+    max_tokens: 2000
+
+  # Task routing (which provider for which task)
+  task_routing:
+    event_parsing: "anthropic"  # Better at structured extraction
+    insights_generation: "anthropic"  # Better at narrative
+    scheduling: "openai"  # Faster for simple tasks
+
+  # Rate limiting
+  rate_limit:
+    requests_per_minute: 60
+    retry_attempts: 3
+    retry_delay: 2  # seconds
+
+# Background Jobs Configuration
+scheduler:
+  timezone: "America/New_York"  # Your local timezone
+
+  # Job definitions
+  jobs:
+    # Calendar sync
+    calendar_sync:
+      enabled: true
+      interval_minutes: 2
+      max_instances: 1
+      coalesce: true
+
+    # Inbox triage
+    inbox_triage:
+      enabled: true
+      interval_minutes: 5
+      max_instances: 1
+
+    # Git repository monitoring
+    git_monitor:
+      enabled: true
+      interval_minutes: 10
+      search_paths:
+        - "~/projects"
+        - "~/code"
+        - "/media/shared/personalProjects"
+
+    # Daily planning
+    daily_plan:
+      enabled: true
+      hour: 7
+      minute: 0
+
+    # End of day summary
+    eod_summary:
+      enabled: true
+      hour: 18
+      minute: 0
+
+    # Weekly review
+    weekly_review:
+      enabled: true
+      day_of_week: "mon"  # Monday
+      hour: 8
+      minute: 0
+
+    # Activity insights
+    activity_insights:
+      enabled: true
+      hour: 23
+      minute: 0
+
+# Smart Scheduler Configuration
+scheduling:
+  algorithm: "heuristic"  # "heuristic" or "ortools"
+
+  # Working hours
+  working_hours:
+    monday:
+      start: "09:00"
+      end: "18:00"
+    tuesday:
+      start: "09:00"
+      end: "18:00"
+    wednesday:
+      start: "09:00"
+      end: "18:00"
+    thursday:
+      start: "09:00"
+      end: "18:00"
+    friday:
+      start: "09:00"
+      end: "18:00"
+    saturday:
+      enabled: false
+    sunday:
+      enabled: false
+
+  # Deep work windows (protected time blocks)
+  deep_work_windows:
+    - day: "all"
+      start: "09:00"
+      end: "11:00"
+    - day: "all"
+      start: "14:00"
+      end: "16:00"
+
+  # Constraints
+  constraints:
+    max_hours_per_day: 6
+    min_task_duration_minutes: 25  # Minimum Pomodoro
+    max_task_duration_minutes: 120  # Force breaks
+    context_switch_penalty: 15  # Minutes penalty for switching
+    max_tasks_per_day: 8
+
+  # Task preferences
+  preferences:
+    morning_high_energy: true  # Schedule high-energy tasks in morning
+    afternoon_low_energy: true  # Schedule low-energy tasks in afternoon
+    group_similar_tasks: true  # Reduce context switching
+    buffer_time_minutes: 10  # Buffer between tasks
+
+# Insights Configuration
+insights:
+  # Metrics to calculate
+  metrics:
+    deep_work_hours: true
+    context_switches: true
+    task_completion_rate: true
+    time_by_project: true
+    time_by_app: true
+    browser_usage: true
+    peak_productivity_hours: true
+
+  # Thresholds for warnings
+  thresholds:
+    min_deep_work_hours_per_day: 4
+    max_context_switches_per_hour: 6
+    max_distraction_time_percent: 20
+    min_completion_rate_percent: 75
+
+# Session Monitoring
+sessions:
+  # File watcher for session exports
+  watch_directory: "data/sessions"
+
+  # Supported formats
+  formats:
+    - ".md"
+    - ".json"
+    - ".txt"
+
+  # Git monitoring
+  git:
+    auto_discover: true
+    exclude_patterns:
+      - "*/node_modules/*"
+      - "*/venv/*"
+      - "*/.git/*"
+
+# Web UI Configuration
+web:
+  # Template settings
+  templates_dir: "app/web/templates"
+  static_dir: "app/web/static"
+
+  # Features
+  features:
+    real_time_updates: true  # WebSocket updates
+    dark_mode: true
+    notifications: true
+
+  # Pagination
+  pagination:
+    default_limit: 50
+    max_limit: 1000
+
+# Logging Configuration
+logging:
+  # Console logging
+  console:
+    enabled: true
+    level: "INFO"
+    format: "{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {name}:{function}:{line} - {message}"
+
+  # File logging
+  file:
+    enabled: true
+    path: "data/logs/app_{time:YYYY-MM-DD}.log"
+    rotation: "00:00"  # Rotate at midnight
+    retention: "30 days"
+    compression: "gz"
+    level: "INFO"
+
+  # Specific module levels
+  modules:
+    app.calendar: "DEBUG"
+    app.scheduler: "INFO"
+    sqlalchemy.engine: "WARNING"
+
+# Security Configuration
+security:
+  # API authentication (optional, for remote access)
+  api_auth:
+    enabled: false
+    type: "basic"  # "basic" or "api_key"
+    username: "admin"
+    password: "${API_PASSWORD}"  # From environment
+
+  # CORS (for web UI access from different domains)
+  cors:
+    enabled: false
+    allowed_origins:
+      - "http://localhost:3000"
+
+  # Rate limiting
+  rate_limiting:
+    enabled: false
+    requests_per_minute: 100
+
+# Backup Configuration
+backup:
+  enabled: true
+  directory: "data/backups"
+  schedule: "0 2 * * *"  # Daily at 2 AM (cron format)
+  retention_days: 30
+  compression: true
+
+# Notifications Configuration (future feature)
+notifications:
+  enabled: false
+  channels:
+    desktop:
+      enabled: false
+    email:
+      enabled: false
+      smtp_host: "smtp.gmail.com"
+      smtp_port: 587
+      from: "your-email@gmail.com"
+      to: "your-email@gmail.com"
+
+# Feature Flags
+features:
+  calendar_webhooks: false  # Google Calendar push notifications
+  local_llm: false  # Ollama integration
+  voice_interface: false  # Voice input/output
+  mobile_app: false  # Companion mobile app
+  plugins: false  # Plugin system

@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }} - Personal AI Assistant</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 3rem;
+            max-width: 600px;
+            text-align: center;
+        }
+
+        h1 {
+            color: #667eea;
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .version {
+            color: #999;
+            font-size: 0.9rem;
+            margin-bottom: 2rem;
+        }
+
+        .status {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 1.5rem;
+            margin: 2rem 0;
+        }
+
+        .status-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .status-item:last-child {
+            border-bottom: none;
+        }
+
+        .status-label {
+            font-weight: 600;
+            color: #495057;
+        }
+
+        .status-value {
+            color: #28a745;
+        }
+
+        .links {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+
+        .link-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 1.5rem 1rem;
+            border-radius: 10px;
+            text-decoration: none;
+            transition: transform 0.2s, box-shadow 0.2s;
+            cursor: pointer;
+        }
+
+        .link-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+        }
+
+        .link-card h3 {
+            font-size: 1.1rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .link-card p {
+            font-size: 0.85rem;
+            opacity: 0.9;
+        }
+
+        .setup-notice {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 10px;
+            padding: 1rem;
+            margin-top: 2rem;
+            color: #856404;
+        }
+
+        .setup-notice h4 {
+            margin-bottom: 0.5rem;
+        }
+
+        .setup-notice code {
+            background: #f8f9fa;
+            padding: 0.2rem 0.4rem;
+            border-radius: 3px;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🤖 Personal Manager</h1>
+        <p class="version">Version {{ version }}</p>
+        <p>Your AI-Powered Personal Assistant</p>
+
+        <div class="status">
+            <div class="status-item">
+                <span class="status-label">Status</span>
+                <span class="status-value">● Running</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">Backend</span>
+                <span class="status-value">FastAPI</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">Database</span>
+                <span class="status-value">SQLite</span>
+            </div>
+        </div>
+
+        <div class="links">
+            <a href="/docs" class="link-card">
+                <h3>📚 API Docs</h3>
+                <p>Interactive API documentation</p>
+            </a>
+            <a href="/api/health" class="link-card">
+                <h3>💚 Health</h3>
+                <p>System health check</p>
+            </a>
+            <a href="/api/status" class="link-card">
+                <h3>📊 Status</h3>
+                <p>System status</p>
+            </a>
+        </div>
+
+        <div class="setup-notice">
+            <h4>🚀 Setup Required</h4>
+            <p>To complete setup, run:</p>
+            <p style="margin-top: 0.5rem;">
+                <code>python scripts/setup_google_calendar.py</code>
+            </p>
+            <p style="margin-top: 0.5rem; font-size: 0.85rem;">
+                Then configure your API keys in <code>.env</code>
+            </p>
+        </div>
+    </div>
+</body>
+</html>
