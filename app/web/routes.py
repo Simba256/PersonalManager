@@ -637,7 +637,7 @@ async def _chat_stream(message: str, history: list) -> AsyncIterator[str]:
     yield f"data: {json.dumps({'type': 'done'})}\n\n"
 
 
-def _collect_stream(model: str, messages: list) -> list[str]:
+def _collect_stream(model: str, messages: list, max_tokens: int = 2000) -> list[str]:
     """Run a streaming litellm call in a thread and return all chunks as a list.
 
     Returns a plain list so it can be safely passed back to the async context
@@ -650,7 +650,7 @@ def _collect_stream(model: str, messages: list) -> list[str]:
             model=model,
             messages=messages,
             temperature=0.4,
-            max_tokens=2000,
+            max_tokens=max_tokens,
             stream=True,
         )
         for chunk in resp:
@@ -829,3 +829,90 @@ async def regenerate_plan():
         "data": plan,
         "message": f"Plan regenerated for {target}: {len(plan['slots'])} slots",
     }
+
+
+PLAN_CHAT_SYSTEM = """You are a schedule assistant. The user has a time-blocked daily plan and wants to refine it.
+
+When the user describes changes or a new schedule:
+- Return ONLY a JSON array of slot objects inside a ```json code fence, nothing else before or after.
+- Each slot must have: id (string), start ("HH:MM"), duration_minutes (int), title (string), type ("task"|"break"|"meeting"|"admin"), task_id (int or null), notes (string).
+- Preserve slot ids where slots are unchanged. Assign new ids (s1, s2, ...) sequentially.
+- If the user asks a question rather than requesting a change, answer in plain text without a JSON block.
+"""
+
+
+async def _plan_chat_stream(message: str, slots: list, history: list):
+    """SSE stream for plan refinement — no tools, higher token budget."""
+    import litellm
+    import os as _os
+    from app.llm.router import get_llm
+    from loguru import logger
+
+    llm = get_llm()
+    if not llm.available:
+        yield f"data: {json.dumps({'type': 'error', 'text': 'No LLM configured.'})}\n\n"
+        yield f"data: {json.dumps({'type': 'done'})}\n\n"
+        return
+
+    model = llm.preferred_model
+    api_key = llm._get_api_key(model)
+    if api_key:
+        if "anthropic/" in model:
+            _os.environ["ANTHROPIC_API_KEY"] = api_key
+        else:
+            _os.environ["OPENAI_API_KEY"] = api_key
+
+    slots_json = json.dumps(slots, indent=2)
+    context_msg = {
+        "role": "user",
+        "content": (
+            f"Current schedule:\n```json\n{slots_json}\n```\n\n"
+            "I'll now describe my day or requested changes. "
+            "Reply with the full updated schedule as a ```json block, or plain text if I ask a question."
+        ),
+    }
+    context_ack = {
+        "role": "assistant",
+        "content": "Got it. Share your day or changes and I'll return the updated schedule.",
+    }
+
+    messages = [{"role": "system", "content": PLAN_CHAT_SYSTEM}]
+    messages.append(context_msg)
+    messages.append(context_ack)
+    for h in history:
+        if h.get("role") in ("user", "assistant") and h.get("content"):
+            messages.append({"role": h["role"], "content": h["content"]})
+    messages.append({"role": "user", "content": message})
+
+    try:
+        chunks = await asyncio.to_thread(
+            _collect_stream, model, messages, max_tokens=4000
+        )
+        for chunk in chunks:
+            yield f"data: {json.dumps({'type': 'token', 'text': chunk})}\n\n"
+    except Exception as e:
+        logger.error(f"Plan chat stream error: {e}")
+        yield f"data: {json.dumps({'type': 'error', 'text': str(e)})}\n\n"
+
+    yield f"data: {json.dumps({'type': 'done'})}\n\n"
+
+
+@planning_router.post("/chat")
+async def plan_chat(body: dict):
+    """SSE streaming chat endpoint scoped to plan refinement.
+
+    Body: {"message": str, "slots": [...], "history": [...]}
+    No tool calls — returns updated slot JSON in a ```json fence, or plain text.
+    """
+    message = (body.get("message") or "").strip()
+    if not message:
+        raise HTTPException(status_code=400, detail="message field required")
+
+    slots = body.get("slots") or []
+    history = body.get("history") or []
+
+    return StreamingResponse(
+        _plan_chat_stream(message, slots, history),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )

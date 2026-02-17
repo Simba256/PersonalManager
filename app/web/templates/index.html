@@ -1778,21 +1778,14 @@ async function sendPlanMessage() {
   sendBtn.disabled = true;
   addPlanThinking();
 
-  // Build history with a hidden context message containing current slots
-  const contextMsg = {
-    role: 'assistant',
-    content: `Current schedule JSON:\n\`\`\`json\n${JSON.stringify(currentPlanSlots, null, 2)}\n\`\`\`\n\nTo update the schedule, reply with an updated JSON array in a \`\`\`json block. Otherwise just answer the question.`,
-  };
-  const historyToSend = [contextMsg, ...planHistory];
-
   let assistantText = '';
   let bubble = null;
 
   try {
-    const res = await fetch('/api/chat', {
+    const res = await fetch('/api/planning/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: text, history: historyToSend }),
+      body: JSON.stringify({ message: text, slots: currentPlanSlots, history: planHistory }),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
@@ -1830,7 +1823,7 @@ async function sendPlanMessage() {
       }
     }
 
-    // Extract JSON slots from reply
+    // Extract JSON slots from reply and update timeline
     const m = assistantText.match(/```json\n([\s\S]+?)\n```/);
     if (m) {
       try {
@@ -1845,7 +1838,6 @@ async function sendPlanMessage() {
 
     planHistory.push({ role: 'user', content: text });
     planHistory.push({ role: 'assistant', content: assistantText });
-    // Keep history short
     if (planHistory.length > 20) planHistory = planHistory.slice(-20);
 
   } catch (err) {
