@@ -128,12 +128,18 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "save_note",
-            "description": "Save an important note, decision, or piece of information to memory. Use when the user shares something worth remembering that doesn't fit tasks or goals.",
+            "description": (
+                "Save an important note or piece of information. "
+                "Use category='memory' (or 'profile', 'preference', 'about') for facts about the user "
+                "that should be remembered permanently across all future sessions — e.g. their name, "
+                "job, hobbies, preferences, personal details. These are appended to a persistent profile. "
+                "Use other categories ('decision', 'context', 'idea', 'update') for day-to-day notes."
+            ),
             "parameters": {
                 "type": "object",
                 "properties": {
                     "content": {"type": "string", "description": "The note content"},
-                    "category": {"type": "string", "description": "Category e.g. 'decision', 'context', 'idea', 'update'"},
+                    "category": {"type": "string", "description": "Use 'memory'/'profile'/'preference' for permanent user facts; 'decision'/'context'/'idea'/'update' for daily notes"},
                 },
                 "required": ["content"],
             },
@@ -520,20 +526,29 @@ def _save_note(args: dict) -> str:
     from pathlib import Path
     from app.config import settings
 
+    category = args.get("category", "note")
+    content = args["content"]
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+
+    # Persist facts/profile info to the permanent memory profile
+    if category in ("memory", "profile", "preference", "about"):
+        profile_path = settings.data_dir / "memory" / "profile.md"
+        profile_path.parent.mkdir(parents=True, exist_ok=True)
+        entry = f"\n- [{timestamp}] {content}"
+        with open(profile_path, "a") as f:
+            f.write(entry)
+        return f"Remembered [{category}]: '{content[:80]}'"
+
+    # All other notes go to today's dated file
     notes_dir = settings.data_dir / "notes"
     notes_dir.mkdir(parents=True, exist_ok=True)
-
     today = datetime.now().strftime("%Y-%m-%d")
     note_file = notes_dir / f"{today}.md"
-
-    timestamp = datetime.now().strftime("%H:%M")
-    category = args.get("category", "note")
-    entry = f"\n## {timestamp} [{category}]\n{args['content']}\n"
-
+    entry = f"\n## {timestamp} [{category}]\n{content}\n"
     with open(note_file, "a") as f:
         f.write(entry)
 
-    return f"Note saved [{category}]: '{args['content'][:80]}'"
+    return f"Note saved [{category}]: '{content[:80]}'"
 
 
 def _list_directory(args: dict) -> str:

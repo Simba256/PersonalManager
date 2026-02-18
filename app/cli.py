@@ -515,6 +515,35 @@ def _build_chat_context(db) -> dict:
     except Exception:
         pass
 
+    # Load persistent user profile
+    from app.config import settings
+    from pathlib import Path
+    profile_text = None
+    profile_path = settings.data_dir / "memory" / "profile.md"
+    if profile_path.exists():
+        try:
+            profile_text = profile_path.read_text(encoding="utf-8").strip()
+        except Exception:
+            pass
+
+    # Load today's and yesterday's notes (what save_note wrote)
+    notes_text = None
+    notes_dir = settings.data_dir / "notes"
+    if notes_dir.exists():
+        try:
+            from datetime import date, timedelta
+            parts = []
+            for d in [date.today(), date.today() - timedelta(days=1)]:
+                note_file = notes_dir / f"{d}.md"
+                if note_file.exists():
+                    content = note_file.read_text(encoding="utf-8").strip()
+                    if content:
+                        parts.append(f"[{d}]\n{content}")
+            if parts:
+                notes_text = "\n\n".join(parts)
+        except Exception:
+            pass
+
     return {
         "pending": pending,
         "pending_count": len(pending),
@@ -527,6 +556,8 @@ def _build_chat_context(db) -> dict:
         "goals": goals,
         "sessions_today": sessions_today,
         "eod_text": eod_text,
+        "profile_text": profile_text,
+        "notes_text": notes_text,
     }
 
 
@@ -538,10 +569,22 @@ def _build_system_prompt(ctx: dict) -> str:
     project_by_id = {p.id: p.name for p in ctx["projects"]}
 
     lines = [
-        f"You are a personal productivity assistant for a software developer who is also",
-        f"applying for Masters programs abroad.",
-        f"Today is {now.strftime('%A, %B %d, %Y')} and the time is {now.strftime('%H:%M')} (local).",
+        f"You are a personal AI assistant.",
+        f"Today is {now.strftime('%A, %B %d, %Y')} and the time is {now.strftime('%H:%M')} PKT.",
         "",
+    ]
+
+    if ctx.get("profile_text"):
+        lines.append("═══ USER PROFILE & MEMORY ═══")
+        lines.append(ctx["profile_text"])
+        lines.append("")
+
+    if ctx.get("notes_text"):
+        lines.append("═══ RECENT NOTES ═══")
+        lines.append(ctx["notes_text"])
+        lines.append("")
+
+    lines += [
         "═══ TOOL USAGE RULES — follow these exactly ═══",
         "",
         "complete_task",

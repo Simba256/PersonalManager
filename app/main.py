@@ -107,6 +107,19 @@ async def startup_event():
     (settings.data_dir / "logs").mkdir(parents=True, exist_ok=True)
     (settings.data_dir / "sessions").mkdir(parents=True, exist_ok=True)
     (settings.data_dir / "backups").mkdir(parents=True, exist_ok=True)
+    (settings.data_dir / "notes").mkdir(parents=True, exist_ok=True)
+    (settings.data_dir / "plans").mkdir(parents=True, exist_ok=True)
+    memory_dir = settings.data_dir / "memory"
+    memory_dir.mkdir(parents=True, exist_ok=True)
+    profile_path = memory_dir / "profile.md"
+    if not profile_path.exists():
+        profile_path.write_text(
+            "# User Profile\n\n"
+            "## About\n"
+            "<!-- Tell me about yourself and I'll remember it here -->\n\n"
+            "## Notes\n"
+            "<!-- Permanent facts get appended here automatically -->\n"
+        )
 
     # Ensure Activity Tracker daemon is running
     if _is_tracker_running():
