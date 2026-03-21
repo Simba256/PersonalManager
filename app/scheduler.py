@@ -75,6 +75,25 @@ def register_jobs(scheduler: AsyncIOScheduler) -> None:
         name="End-of-Day Check-in"
     )
 
+    scheduler.add_job(
+        job_project_scan,
+        "interval",
+        hours=6,
+        id="project_scan",
+        replace_existing=True,
+        name="Project Snapshot Scan"
+    )
+
+    # One-shot startup scan so snapshot exists immediately
+    scheduler.add_job(
+        job_project_scan,
+        "date",
+        run_date=datetime.now(),
+        id="project_scan_startup",
+        replace_existing=True,
+        name="Project Snapshot (startup)"
+    )
+
     # ── Weekly Jobs ────────────────────────────────────────────────────────
 
     scheduler.add_job(
@@ -199,6 +218,17 @@ async def job_eod_checkin():
 
     except Exception as e:
         logger.error(f"EOD check-in job failed: {e}")
+
+
+async def job_project_scan():
+    """Scan all project repos for git status + tracker data."""
+    try:
+        from app.integrations.project_scanner import ProjectScanner
+        scanner = ProjectScanner()
+        snapshot = scanner.scan()
+        logger.info(f"Project scan complete: {snapshot['project_count']} projects")
+    except Exception as e:
+        logger.error(f"Project scan job failed: {e}")
 
 
 async def job_weekly_insights():

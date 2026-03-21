@@ -49,6 +49,9 @@ Other pending ({other_count}):
 ── ACTIVE BLOCKERS ──
 {blockers_summary}
 
+── CROSS-PROJECT SNAPSHOT ──
+{project_snapshot}
+
 Based on all of the above, provide an end-of-day analysis in this exact format:
 
 ## What Got Done Today
@@ -117,6 +120,9 @@ class EODAnalyst:
         }
 
         analysis_text = None
+        # Load cross-project snapshot
+        snapshot_text = self._format_project_snapshot()
+
         if self._llm.available:
             prompt = EOD_PROMPT_TEMPLATE.format(
                 date=target.strftime("%B %d, %Y"),
@@ -132,6 +138,7 @@ class EODAnalyst:
                 coding_time=self._format_coding_time(coding_time),
                 goals_summary=self._format_goals(goals),
                 blockers_summary=self._format_blockers(blockers),
+                project_snapshot=snapshot_text,
             )
             analysis_text = self._llm.complete(
                 prompt=prompt,
@@ -355,6 +362,35 @@ class EODAnalyst:
         if not blockers:
             return "No active blockers."
         return "\n".join(f"  [{b.severity.upper()}] {b.description[:80]}" for b in blockers[:5])
+
+    def _format_project_snapshot(self) -> str:
+        """Load snapshot and format one line per active/dirty project."""
+        try:
+            from app.integrations.project_scanner import ProjectScanner
+            snapshot = ProjectScanner().load_snapshot()
+            if not snapshot or not snapshot.get("projects"):
+                return "No project snapshot available."
+        except Exception:
+            return "No project snapshot available."
+
+        lines = []
+        for p in snapshot["projects"]:
+            if not p.get("dirty") and not p.get("recent_commits_24h") and not p.get("tracker"):
+                continue
+            parts = [p["name"]]
+            if p.get("dirty"):
+                parts.append("dirty")
+            commits = p.get("recent_commits_24h", [])
+            if commits:
+                parts.append(f"{len(commits)} commits today")
+            tracker = p.get("tracker")
+            if tracker:
+                parts.append(f"status={tracker.get('status', '?')}")
+                wip = tracker.get("in_progress", [])
+                if wip:
+                    parts.append(f"WIP: {wip[0][:50]}")
+            lines.append("  " + " | ".join(parts))
+        return "\n".join(lines) if lines else "All projects clean, no recent activity."
 
     def _generate_fallback(self, task_activity: dict, task_board: dict, coding_time: dict) -> str:
         lines = ["End of Day Summary:"]

@@ -93,6 +93,15 @@ class NightlyPlanner:
             context["pending_tasks"] = []
             context["summary"] = "Plan generated"
 
+        # Load cross-project snapshot
+        try:
+            from app.integrations.project_scanner import ProjectScanner
+            snapshot = ProjectScanner().load_snapshot()
+            if snapshot:
+                context["project_snapshot"] = snapshot
+        except Exception as e:
+            logger.debug(f"Could not load project snapshot: {e}")
+
         return context
 
     def _extract_task_list(self, db) -> list[dict]:
@@ -142,6 +151,24 @@ class NightlyPlanner:
         meetings_text = context.get("meetings", "")
         if meetings_text:
             user_prompt += f"Context / meetings:\n{meetings_text}\n\n"
+
+        # Append active project context from snapshot
+        snapshot = context.get("project_snapshot")
+        if snapshot and snapshot.get("projects"):
+            active_lines = []
+            for p in snapshot["projects"]:
+                tracker = p.get("tracker")
+                if not tracker:
+                    continue
+                wip = tracker.get("in_progress", [])
+                if not wip and tracker.get("status") != "Active":
+                    continue
+                line = f"  - {p['name']}"
+                if wip:
+                    line += f": {wip[0][:60]}"
+                active_lines.append(line)
+            if active_lines:
+                user_prompt += "Active projects with in-progress work:\n" + "\n".join(active_lines) + "\n\n"
 
         user_prompt += (
             "Produce a full day schedule as a JSON array of slot objects. "

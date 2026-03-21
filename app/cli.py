@@ -544,6 +544,14 @@ def _build_chat_context(db) -> dict:
         except Exception:
             pass
 
+    # Load cross-project snapshot
+    project_snapshot = None
+    try:
+        from app.integrations.project_scanner import ProjectScanner
+        project_snapshot = ProjectScanner().load_snapshot()
+    except Exception:
+        pass
+
     return {
         "pending": pending,
         "pending_count": len(pending),
@@ -558,6 +566,7 @@ def _build_chat_context(db) -> dict:
         "eod_text": eod_text,
         "profile_text": profile_text,
         "notes_text": notes_text,
+        "project_snapshot": project_snapshot,
     }
 
 
@@ -681,6 +690,41 @@ def _build_system_prompt(ctx: dict) -> str:
         lines.append("")
         lines.append("TODAY'S EOD SUMMARY:")
         lines.append(ctx["eod_text"][:600])
+
+    # Cross-project status from snapshot
+    snapshot = ctx.get("project_snapshot")
+    if snapshot and snapshot.get("projects"):
+        lines.append("")
+        lines.append("═══ CROSS-PROJECT STATUS ═══")
+        for p in snapshot["projects"]:
+            parts = [f"{p['name']} ({p['branch']})"]
+            # Clean/dirty
+            if p.get("dirty"):
+                staged_n = len(p.get("staged_files", []))
+                unstaged_n = len(p.get("unstaged_files", []))
+                dirty_parts = []
+                if staged_n:
+                    dirty_parts.append(f"{staged_n} staged")
+                if unstaged_n:
+                    dirty_parts.append(f"{unstaged_n} unstaged")
+                parts.append(", ".join(dirty_parts) if dirty_parts else "dirty")
+            else:
+                parts.append("clean")
+            # Recent commits
+            commits_24h = p.get("recent_commits_24h", [])
+            if commits_24h:
+                parts.append(f"{len(commits_24h)} commits today")
+            # Tracker status
+            tracker = p.get("tracker")
+            if tracker:
+                parts.append(f"tracker: {tracker.get('status', '?')}")
+                wip = tracker.get("in_progress", [])
+                if wip:
+                    parts.append(f"WIP: {wip[0][:60]}")
+                blockers = tracker.get("blockers", [])
+                if blockers:
+                    parts.append(f"BLOCKED: {blockers[0][:60]}")
+            lines.append("  " + " — ".join(parts))
 
     return "\n".join(lines)
 

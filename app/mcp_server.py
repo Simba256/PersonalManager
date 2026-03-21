@@ -241,9 +241,9 @@ def resource_pending_tasks() -> str:
         lines = ["| ID | Title | Priority | Due | Project |",
                  "|----|-------|----------|-----|---------|"]
         for t in tasks:
-            due = t.due_date.strftime("%Y-%m-%d") if t.due_date else "—"
-            proj = t.project.name if t.project else "—"
-            title = (t.title[:50] + "…") if len(t.title) > 50 else t.title
+            due = t.due_date.strftime("%Y-%m-%d") if t.due_date else "\u2014"
+            proj = t.project.name if t.project else "\u2014"
+            title = (t.title[:50] + "\u2026") if len(t.title) > 50 else t.title
             lines.append(f"| {t.id} | {title} | {t.priority} | {due} | {proj} |")
 
         return "## Pending Tasks\n\n" + "\n".join(lines)
@@ -276,8 +276,8 @@ def resource_overdue_tasks() -> str:
         for t in tasks:
             days = (now - t.due_date).days
             due = t.due_date.strftime("%Y-%m-%d")
-            proj = t.project.name if t.project else "—"
-            title = (t.title[:50] + "…") if len(t.title) > 50 else t.title
+            proj = t.project.name if t.project else "\u2014"
+            title = (t.title[:50] + "\u2026") if len(t.title) > 50 else t.title
             lines.append(f"| {t.id} | {title} | {t.priority} | {due} | {days} | {proj} |")
 
         return "## Overdue Tasks\n\n" + "\n".join(lines)
@@ -307,8 +307,8 @@ def resource_projects() -> str:
                 1 for t in p.tasks
                 if t.status in ("pending", "in_progress", "scheduled")
             )
-            path = p.repo_path or "—"
-            tags = p.tags or "—"
+            path = p.repo_path or "\u2014"
+            tags = p.tags or "\u2014"
             lines.append(f"| {p.id} | {p.name} | {open_tasks} | {path} | {tags} |")
 
         return "## Active Projects\n\n" + "\n".join(lines)
@@ -333,9 +333,9 @@ def resource_active_goals() -> str:
         lines = ["| ID | Title | Category | Target Date | Progress |",
                  "|----|-------|----------|-------------|----------|"]
         for g in goals:
-            target = g.target_date.strftime("%Y-%m-%d") if g.target_date else "—"
-            cat = g.category or "—"
-            title = (g.title[:50] + "…") if len(g.title) > 50 else g.title
+            target = g.target_date.strftime("%Y-%m-%d") if g.target_date else "\u2014"
+            cat = g.category or "\u2014"
+            title = (g.title[:50] + "\u2026") if len(g.title) > 50 else g.title
             lines.append(f"| {g.id} | {title} | {cat} | {target} | {g.progress_percent}% |")
 
         return "## Active Goals\n\n" + "\n".join(lines)
@@ -353,9 +353,78 @@ def resource_eod_today() -> str:
 
     if eod_file.exists():
         content = eod_file.read_text(encoding="utf-8", errors="replace")
-        return f"## EOD Report — {today}\n\n{content}"
+        return f"## EOD Report \u2014 {today}\n\n{content}"
 
     return f"No EOD report for {today} yet. Run `pm eod` to generate one."
+
+
+@mcp.resource("projects://snapshot")
+def resource_project_snapshot() -> str:
+    """Cross-project snapshot: git status, recent commits, and tracker data for all repos."""
+    from app.integrations.project_scanner import ProjectScanner
+
+    snapshot = ProjectScanner().load_snapshot()
+    if not snapshot or not snapshot.get("projects"):
+        return "No project snapshot available. The scanner may not have run yet."
+
+    lines = [
+        "## Cross-Project Snapshot",
+        f"Generated: {snapshot.get('generated_at', '?')}",
+        f"Projects: {snapshot.get('project_count', 0)}",
+        "",
+    ]
+
+    for p in snapshot["projects"]:
+        status_parts = []
+        if p.get("dirty"):
+            status_parts.append("dirty")
+        else:
+            status_parts.append("clean")
+
+        staged = p.get("staged_files", [])
+        unstaged = p.get("unstaged_files", [])
+        if staged:
+            status_parts.append(f"{len(staged)} staged")
+        if unstaged:
+            status_parts.append(f"{len(unstaged)} unstaged")
+        if p.get("untracked_count"):
+            status_parts.append(f"{p['untracked_count']} untracked")
+
+        branch = p.get("branch", "?")
+        name = p.get("name", "?")
+        lines.append(f"### {name} (`{branch}`) \u2014 {', '.join(status_parts)}")
+
+        if staged:
+            lines.append("**Staged:** " + ", ".join(f"`{f}`" for f in staged[:10]))
+        if unstaged:
+            lines.append("**Unstaged:** " + ", ".join(f"`{f}`" for f in unstaged[:10]))
+
+        lc = p.get("last_commit")
+        if lc:
+            lines.append(f"**Last commit:** `{lc['hash']}` {lc['message']} ({lc['timestamp']})")
+
+        recent = p.get("recent_commits_24h", [])
+        if recent:
+            lines.append(f"**Recent commits (24h):** {len(recent)}")
+            for c in recent:
+                files = c.get("files_changed", "?")
+                lines.append(f"  - `{c['hash']}` {c['message']} ({files} files)")
+
+        tracker = p.get("tracker")
+        if tracker:
+            t_status = tracker.get("status", "?")
+            t_updated = tracker.get("last_updated", "?")
+            lines.append(f"**Tracker:** {t_status} (updated {t_updated})")
+            if tracker.get("summary"):
+                lines.append(f"  {tracker['summary']}")
+            for item in tracker.get("in_progress", [])[:3]:
+                lines.append(f"  - [ ] {item}")
+            for b in tracker.get("blockers", [])[:2]:
+                lines.append(f"  - BLOCKED: {b}")
+
+        lines.append("")
+
+    return "\n".join(lines)
 
 
 # ── Entry point ────────────────────────────────────────────────────────────────
